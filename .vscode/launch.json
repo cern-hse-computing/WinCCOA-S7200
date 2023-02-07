@@ -1,0 +1,16 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "cpp attach process",
+            "type": "cppdbg",
+            "request": "attach",
+            "program": "/opt/sc/dev/projDubey/remus_dev_rdubey/bin/WCCOAS7200",
+            //"processId": 17753
+            "processId": "${command:pickProcess}"
+        }
+    ]
+}

@@ -1,0 +1,23 @@
+##
+## LINUX barebone makefile for c++ examples : good for all platforms
+##
+## Simply run make or make clean
+##
+## Intend this makefile only as a "batch examples updater" after library modification.
+##
+
+Libs     := -lsnap7 
+Wrapper  :=snap7.cpp
+
+CXX      := g++
+CC       := gcc
+CXXFLAGS += -std=c++11 -ggdb -rdynamic -O3
+CFLAGS   :=
+
+.PHONY: all clean
+
+all: 
+	$(CXX) $(CXXFLAGS) -o test ./test.cpp ./$(Wrapper) $(Libs) 
+
+clean:
+	$(RM) main
