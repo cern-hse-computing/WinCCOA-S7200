@@ -78,6 +78,7 @@ PVSSboolean S7200FloatTrans::toPeriph(PVSSchar *buffer, PVSSuint len,	const Vari
 		return PVSS_FALSE;
 	}
 	reinterpret_cast<float *>(buffer)[subix] = ReverseFloat((float)(reinterpret_cast<const FloatVar &>(var)).getValue());
+
 	return PVSS_TRUE;
 }
 

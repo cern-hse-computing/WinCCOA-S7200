@@ -15,6 +15,14 @@
 #ifndef S7200LIBFACADE_HXX
 #define S7200LIBFACADE_HXX
 
+#define OPERATION_READ 0
+#define OPERATION_WRITE 1
+#define OVERHEAD_READ_MESSAGE 13
+#define OVERHEAD_READ_VARIABLE 5
+#define OVERHEAD_WRITE_MESSAGE 12
+#define OVERHEAD_WRITE_VARIABLE 16
+#define PDU_SIZE 240
+
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -42,19 +50,23 @@ public:
      * @param consumeCallbackConsumer : a callback that will be called for eached polled message
      * */
     S7200LibFacade(const std::string& ip, consumeCallbackConsumer, errorCallbackConsumer);
+    void Disconnect();
 
     S7200LibFacade(const S7200LibFacade&) = delete;
     S7200LibFacade& operator=(const S7200LibFacade&) = delete;
 
     bool isInitialized(){return _initialized;}
     void poll(std::unordered_set<std::string>&);
+    void write(std::vector<std::pair<std::string, void * >>);
 
     TS7DataItem S7200Read(std::string S7200Address, void* val);
     // TS7DataItem* S7200LibFacade::S7200Read2(std::string S7200Address1, void* val1, std::string S7200Address2, void* val2);
     void S7200ReadN(std::vector<std::string> validVars, int N);
-    void S7200ReadMaxN(std::vector <std::string> validVars, int N);
+    void S7200ReadMaxN(std::vector <std::string> validVars, int N, int pdu_size, int VAR_OH, int MSG_OH);
+    void S7200ReadWriteMaxN(std::vector <std::pair<std::string, void *>> validVars, uint N, int PDU_SZ, int VAR_OH, int MSG_OH, int rorw);
     TS7DataItem S7200Write(std::string S7200Address, void* val);
     static int getByteSizeFromAddress(std::string S7200Address);
+    
     static bool S7200AddressIsValid(std::string S7200Address);
 private:
     //std::unique_ptr<Consumer> _consumer;

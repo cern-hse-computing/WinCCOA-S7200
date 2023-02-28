@@ -49,6 +49,19 @@ VariableType S7200Int16Trans::getVariableType() const {
 	return INTEGER_VAR;
 }
 
+int16_t ReverseInt16( const int16_t inInt16 )
+{
+   int16_t retVal;
+   char *IntToConvert = ( char* ) & inInt16;
+   char *returnInt = ( char* ) & retVal;
+
+   // swap the bytes into a temporary buffer
+   returnInt[0] = IntToConvert[1];
+   returnInt[1] = IntToConvert[0];
+
+   return retVal;
+}
+
 
 PVSSboolean S7200Int16Trans::toPeriph(PVSSchar *buffer, PVSSuint len,	const Variable &var, const PVSSuint subix) const {
 
@@ -64,7 +77,8 @@ PVSSboolean S7200Int16Trans::toPeriph(PVSSchar *buffer, PVSSuint len,	const Vari
 	}
 	// this one is a bit special as the number is handled by wincc oa as int32, but we handle it as 16 bit  integer
 	// thus any info above the 16 first bits is lost
-	*(reinterpret_cast<int16_t *>(buffer + (subix * size))) = (int16_t)(reinterpret_cast<const IntegerVar &>(var)).getValue();
+	reinterpret_cast<int16_t *>(buffer)[subix] = ReverseInt16(reinterpret_cast<const IntegerVar &>(var).getValue());
+	
 	return PVSS_TRUE;
 }
 

@@ -18,12 +18,13 @@
 #include "Common/Constants.hxx"
 #include "Common/Logger.hxx"
 
+#include <algorithm>
 #include <vector>
 
 S7200LibFacade::S7200LibFacade(const std::string& ip, consumeCallbackConsumer cb, errorCallbackConsumer erc = nullptr)
     : _ip(ip), _consumeCB(cb), _errorCB(erc)
 {
-    Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Connecting to '", ip.c_str());
+    Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Connecting to '", ip.c_str());
 
     try{
         _client = new TS7Client();
@@ -33,7 +34,7 @@ S7200LibFacade::S7200LibFacade(const std::string& ip, consumeCallbackConsumer cb
 
 
         if (res==0) {
-            Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Connected to '", ip.c_str());
+            Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Connected to '", ip.c_str());
             //printf("  PDU Requested  : %d bytes\n",Client->PDURequested());
             //printf("  PDU Negotiated : %d bytes\n",Client->PDULength());
             _initialized = true;
@@ -41,22 +42,59 @@ S7200LibFacade::S7200LibFacade(const std::string& ip, consumeCallbackConsumer cb
     }
     catch(std::exception& e)
     {
-        Common::Logger::globalWarning("Unable to initialize connection!", e.what());
+        Common::Logger::globalWarning("Snap7: Unable to initialize connection!", e.what());
+    }
+}
+
+void S7200LibFacade::Disconnect()
+{
+    Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Disconnecting from '", _ip.c_str());
+
+    try{
+        int res = _client->Disconnect();
+
+
+        if (res==0) {
+            Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Disconnected successfully from '", _ip.c_str());
+            _initialized = false;
+        }
+    }
+    catch(std::exception& e)
+    {
+        Common::Logger::globalWarning("Snap7: Unable to disconnect!", e.what());
     }
 }
 
 void S7200LibFacade::poll(std::unordered_set<std::string>& vars)
 {
-    _client->PDULength();
+    std::vector <std::string> validVars;
 
-    for (const auto& var : vars){
+    for (std::string var : vars){
         if(S7200AddressIsValid(var)){
-            char buffer[256];
-            TS7DataItem item = S7200Read(var, buffer);
-            this->_consumeCB(_ip, var, reinterpret_cast<char*>(item.pdata));
+            validVars.push_back(var);
         }
-   }
+    }
+
+    if(validVars.size() == 0) {
+        Common::Logger::globalInfo(Common::Logger::L1, "Valid vars size is 0, did not call read");
+        return;
+    }
+    std::vector<std::pair<std::string, void *>> addresses;
+
+    for(uint i = 0; i< validVars.size(); i++) {
+        addresses.push_back(std::pair<std::string, void *>(validVars[i], NULL));
+    }
+    S7200ReadWriteMaxN(addresses, 19, PDU_SIZE, OVERHEAD_READ_VARIABLE, OVERHEAD_READ_MESSAGE, OPERATION_READ);
 }
+
+void S7200LibFacade::write(std::vector<std::pair<std::string, void *>> addresses) {
+    S7200ReadWriteMaxN(addresses, 12, PDU_SIZE, OVERHEAD_WRITE_VARIABLE, OVERHEAD_WRITE_MESSAGE, OPERATION_WRITE);
+
+    for(uint i = 0; i < addresses.size(); i++) {
+        free(addresses[i].second);
+    }
+}
+
 
 int S7200LibFacade::S7200AddressGetWordLen(std::string S7200Address)
 {
@@ -70,7 +108,7 @@ int S7200LibFacade::S7200AddressGetWordLen(std::string S7200Address)
         return S7WLWord;
     }
     else if(std::tolower((char) S7200Address.at(1)) == 'd'){
-        return S7WLReal;
+        return S7WLReal; //e.g. VD124 GLB.CAL.GANA1
     }
     else{  //e.g.: V255.3
         return S7WLBit;
@@ -193,30 +231,30 @@ void S7200LibFacade::S7200DisplayTS7DataItem(PS7DataItem item)
         case S7WLByte:
             if(item->Amount>1){
                 std::string strVal( reinterpret_cast<char const*>(item->pdata));
-                //printf("-->read valus as string :'%s'\n", strVal.c_str());
+                printf("-->read valus as string :'%s'\n", strVal.c_str());
             }
             else{
                 uint8_t byteVal;
                 std::memcpy(&byteVal, item->pdata  , sizeof(uint8_t));
-                //printf("-->read value as byte : %d\n", byteVal);
+                printf("-->read value as byte : %d\n", byteVal);
             }
             break;
         case S7WLWord:
             uint16_t wordVal;
             std::memcpy(&wordVal, item->pdata  , sizeof(uint16_t));
-            //printf("-->read value as word : %d\n", __bswap_16(wordVal));
+            printf("-->read value as word : %d\n", __bswap_16(wordVal));
             break;
         case S7WLReal:{
                 float realVal;
                 u_char f[] = { static_cast<byte*>(item->pdata)[3], static_cast<byte*>(item->pdata)[2], static_cast<byte*>(item->pdata)[1], static_cast<byte*>(item->pdata)[0]};
                 std::memcpy(&realVal, f, sizeof(float));
-                //printf("-->read value as real : %.3f\n", realVal);
+                printf("-->read value as real : %.3f\n", realVal);
             }
             break;
         case S7WLBit:
             uint8_t bitVal;
             std::memcpy(&bitVal, item->pdata  , sizeof(uint8_t));
-            //printf("-->read value as bit : %d\n", bitVal);      
+            printf("-->read value as bit : %d\n", bitVal);      
             break;
     }
 }
@@ -232,68 +270,129 @@ TS7DataItem S7200LibFacade::S7200TS7DataItemFromAddress(std::string S7200Address
     return item;
 }
 
-TS7DataItem S7200LibFacade::S7200Read(std::string S7200Address, void* val)
+float ReverseFloat( const float inFloat )
 {
-    try{
-        TS7DataItem item = S7200TS7DataItemFromAddress(S7200Address);
-        int memSize = (S7200DataSizeByte(item.WordLen )*item.Amount);
+   float retVal;
+   char *floatToConvert = ( char* ) & inFloat;
+   char *returnFloat = ( char* ) & retVal;
 
-        //printf("-------------read S7200Address=>(Area, Start, WordLen, Amount): memSize : %s =>(%d, %d, %d, %d) : %dB\n", S7200Address.c_str(), item.Area, item.Start, item.WordLen, item.Amount, memSize);
-        
-        if(_client->ReadMultiVars(&item, 1) == 0){
-            if(item.WordLen == S7WLWord){
-                uint16_t wordVal;
-                std::memcpy(&wordVal, item.pdata, memSize);
-                wordVal = __bswap_16(wordVal);
-                std::memcpy(val, &wordVal, memSize);
+   // swap the bytes into a temporary buffer
+   returnFloat[0] = floatToConvert[3];
+   returnFloat[1] = floatToConvert[2];
+   returnFloat[2] = floatToConvert[1];
+   returnFloat[3] = floatToConvert[0];
+
+   return retVal;
+}
+
+void S7200LibFacade::S7200ReadWriteMaxN(std::vector <std::pair<std::string, void *>> validVars, uint N, int PDU_SZ, int VAR_OH, int MSG_OH, int rorw) {
+    try{
+        uint last_index = 0;
+        uint to_send = 0;
+
+        TS7DataItem *item = new TS7DataItem[validVars.size()];
+
+        for(uint i = 0; i < validVars.size(); i++) {
+            item[i] = S7200TS7DataItemFromAddress(validVars[i].first);
+            
+            if(rorw == 1) {
+                int memSize = (S7200DataSizeByte(item[i].WordLen )*item[i].Amount);
+
+                if(S7200DataSizeByte(item[i].WordLen) == 2) {
+                    std::memcpy(item[i].pdata , validVars[i].second, sizeof(int16_t));
+                } else if (S7200DataSizeByte(item[i].WordLen) == 4) {
+                    std::memcpy(item[i].pdata , validVars[i].second, sizeof(float));
+                } else {
+                    //case string
+                    std::memcpy(item[i].pdata, validVars[i].second, memSize);
+                }
+            }
+        }
+
+        int retOpt;
+
+        int curr_sum;
+
+        last_index = 0;
+        while(last_index < validVars.size()) {
+            to_send = 0;
+            curr_sum = 0;
+            
+            uint i;
+            for(i = last_index; i < validVars.size(); i++) {
+                
+                if( curr_sum + (((S7200DataSizeByte(item[i].WordLen)) * item[i].Amount) + VAR_OH) < ( PDU_SZ - MSG_OH ) ) {
+                    to_send++;
+                    curr_sum += ((S7200DataSizeByte(item[i].WordLen)) * item[i].Amount) + VAR_OH;
+                } else{
+                    break;
+                }
+
+                if(to_send == N) { //Request upto N variables
+                    break;
+                }
+            }
+
+            if(to_send == 0) {
+                //This means that the current variable has a mem size > PDU. Call with ReadArea 
+                //printf("To read a single variable with index %d and total size %d\n", last_index, ((S7200DataSizeByte(item[i].WordLen)) * item[i].Amount));
+                to_send += 1;
+                curr_sum = ((S7200DataSizeByte(item[i].WordLen)) * item[i].Amount) + VAR_OH + MSG_OH;
+
+                if(rorw == 0)
+                    retOpt = _client->ReadArea(item[last_index].Area, item[last_index].DBNumber, item[last_index].Start, item[last_index].Amount, item[last_index].WordLen, item[last_index].pdata);
+                else
+                    retOpt = _client->WriteArea(item[last_index].Area, item[last_index].DBNumber, item[last_index].Start, item[last_index].Amount, item[last_index].WordLen, item[last_index].pdata);
+
+            } else {
+                //printf("To read %d variables, total requesting incl overheads: %d\n", to_send, curr_sum+MSG_OH);
+                //printf("To read variables from range %d to %d \n", last_index, last_index + to_send);
+
+                if(rorw == 0)
+                    retOpt = _client->ReadMultiVars(&(item[last_index]), to_send);
+                else {
+                    retOpt = _client->WriteMultiVars(&(item[last_index]), to_send);
+                }
+            }
+
+            if( retOpt == 0) {
+                //printf("Read/Write OK. ");
+                //printf("Read/Write %d items\n", to_send);
+
+                if(rorw == 0) {
+                    Common::Logger::globalInfo(Common::Logger::L1, "Read OK");
+                
+                    for(uint i = last_index; i < last_index + to_send; i++)
+                        this->_consumeCB(_ip, validVars[i].first, reinterpret_cast<char*>(item[i].pdata));
+                } else {
+                    Common::Logger::globalInfo(Common::Logger::L1, "Write OK");
+                }
             }
             else{
-                std::memcpy(val, item.pdata, memSize);
+                if(rorw == 0) {
+                    //printf("-->Read NOK!, Tried to read %d elements with total requesting size: %d .retOpt is %d\n", to_send, curr_sum + MSG_OH, retOpt);
+                    Common::Logger::globalInfo(Common::Logger::L1, "-->Read NOK");
+                }
+                else {
+                    //printf("-->Write NOK!, Tried to write %d elements with total requesting size: %d .retOpt is %d\n", to_send, curr_sum + MSG_OH, retOpt);
+                    Common::Logger::globalInfo(Common::Logger::L1, "-->Write NOK");
+                }
             }
-            //S7200DisplayTS7DataItem(&item);
+            
+            last_index += to_send;
         }
-        else{
-        //printf("-->read NOK!\n");
-        }
-        return item;
+
     }
     catch(std::exception& e){
-        Common::Logger::globalWarning(__PRETTY_FUNCTION__," Read invalid", S7200Address.c_str());
-        Common::Logger::globalError(e.what());
+        printf("Exception in read function\n");
+        Common::Logger::globalWarning(__PRETTY_FUNCTION__," Read invalid. Encountered Exception.");
+        //Common::Logger::globalError(e.what());
     }
 }
+
 
 int S7200LibFacade::getByteSizeFromAddress(std::string S7200Address)
 {
     TS7DataItem item = S7200TS7DataItemFromAddress(S7200Address);
     return (S7200DataSizeByte(item.WordLen )*item.Amount);
-}
-
-TS7DataItem S7200LibFacade::S7200Write(std::string S7200Address, void* val)
-{
-    try{
-        TS7DataItem item = S7200TS7DataItemFromAddress(S7200Address);
-        int memSize = (S7200DataSizeByte(item.WordLen )*item.Amount);
-        if(item.WordLen == S7WLWord){
-            uint16_t wordVal;
-            std::memcpy(&wordVal, val, memSize);
-            wordVal = __bswap_16(wordVal);
-            std::memcpy(item.pdata , &wordVal , memSize);
-        }
-        else{
-            std::memcpy(item.pdata , val , memSize);
-        }
-        //printf("-------------write S7200Address=>(Area, Start, WordLen, Amount): memSize : %s =>(%d, %d, %d, %d) : %dB\n", S7200Address.c_str(), item.Area, item.Start, item.WordLen, item.Amount, memSize);
-        if(_client->WriteMultiVars(&item, 1) == 0){
-            //printf("-->write OK!\n");
-        }
-        else{
-            //printf("-->write NOK!\n");
-        }
-        return item;
-    }
-    catch(std::exception& e){
-        Common::Logger::globalWarning(__PRETTY_FUNCTION__," Write invalid", S7200Address.c_str());
-        Common::Logger::globalError(e.what());
-    }
 }

@@ -19,6 +19,7 @@
 #include "Transformations/S7200FloatTrans.hxx"
 #include "Transformations/S7200BoolTrans.hxx"
 #include "Transformations/S7200Uint8Trans.hxx"
+#include "S7200HWService.hxx"
 
 #include "Common/Logger.hxx"
 #include "Common/Utils.hxx"
@@ -33,7 +34,7 @@ PVSSboolean S7200HWMapper::addDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
   // Otherwise we had to look if we already have a HWObject and adapt its length.
 
   Common::Logger::globalInfo(Common::Logger::L1,"addDpPa called for ", confPtr->getName().c_str());
-  Common::Logger::globalInfo(Common::Logger::L1,"addDpPa direction ", CharString(confPtr->getDirection()));
+  //Common::Logger::globalInfo(Common::Logger::L1,"addDpPa direction ", CharString(confPtr->getDirection()));
 
 
   // tell the config how we will transform data to/from the device
@@ -46,7 +47,7 @@ PVSSboolean S7200HWMapper::addDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
   // with the SIM driver parametrization panel
   switch ((uint32_t)confPtr->getTransformationType()) {
   case TransUndefinedType:
-      Common::Logger::globalInfo(Common::Logger::L3,"Undefined transformation" + CharString(confPtr->getTransformationType()));
+      Common::Logger::globalInfo(Common::Logger::L1,"Undefined transformation" + CharString(confPtr->getTransformationType()));
       return HWMapper::addDpPa(dpId, confPtr);
   case S7200DrvBoolTransType:
         Common::Logger::globalInfo(Common::Logger::L3,"Bool transformation");
@@ -78,8 +79,11 @@ PVSSboolean S7200HWMapper::addDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
   }
 
   // First add the config, then the HW-Object
-  if ( !HWMapper::addDpPa(dpId, confPtr) )  // FAILED !!
-    return PVSS_FALSE;
+  if ( !HWMapper::addDpPa(dpId, confPtr) )  // FAILED !! 
+  {
+    Common::Logger::globalInfo(Common::Logger::L1,"Failed in adding DP Para to HW Mapper object");
+      return PVSS_FALSE;
+  }
 
   HWObject *hwObj = new HWObject;
   // Set Address and Subindex
@@ -97,9 +101,10 @@ PVSSboolean S7200HWMapper::addDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
   // Add it to the list
   addHWObject(hwObj);
 
+  std::vector<std::string> addressOptions = Common::Utils::split(hwObj->getAddress().c_str());
+
   if(confPtr->getDirection() == DIRECTION_IN || confPtr->getDirection() == DIRECTION_INOUT)
   {
-      std::vector<std::string> addressOptions = Common::Utils::split(hwObj->getAddress().c_str());
       if (addressOptions.size() == 2) // IP + VAR
       {
         addAddress(addressOptions[0], addressOptions[1]);
@@ -115,6 +120,8 @@ PVSSboolean S7200HWMapper::clrDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
 {
   DEBUG_DRV_USR1("clrDpPa called for " << confPtr->getName());
 
+  Common::Logger::globalInfo(Common::Logger::L1, "clrDpPa called for" + confPtr->getName());
+
   // Find our HWObject via a template
   HWObject adrObj;
   adrObj.setAddress(confPtr->getName());
@@ -122,6 +129,16 @@ PVSSboolean S7200HWMapper::clrDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
   // Lookup HW-Object via the Name, not via the HW-Address
   // The class type isn't important here
   HWObject *hwObj = findHWAddr(&adrObj);
+
+  std::vector<std::string> addressOptions = Common::Utils::split(hwObj->getAddress().c_str());
+
+  if(confPtr->getDirection() == DIRECTION_IN || confPtr->getDirection() == DIRECTION_INOUT)
+  {
+      if (addressOptions.size() == 2) // IP + VAR
+      {
+        removeAddress(addressOptions[0], addressOptions[1]);
+      }
+  }
 
   if ( hwObj )
   {
@@ -139,15 +156,34 @@ void S7200HWMapper::addAddress(const std::string &ip, const std::string &var)
     if(S7200IPs.find(ip) == S7200IPs.end())
     {
         S7200IPs.insert(ip);
-
-        if(_newIPAddressCB)
-        {
-           _newIPAddressCB(ip);
-        }
+        S7200Addresses.erase(ip);
+        S7200Addresses.insert(std::pair<std::string, std::unordered_set<std::string>>(ip, std::unordered_set<std::string>()));
     }
 
-    if(S7200Addresses[ip].find(var) == S7200Addresses[ip].end())
-    {
+    if(S7200Addresses.count(ip)){
+      if(S7200Addresses[ip].find(var) == S7200Addresses[ip].end())
+      {
         S7200Addresses[ip].insert(var);
+      }
     }
+}
+
+void S7200HWMapper::removeAddress(const std::string &ip, const std::string &var)
+{
+  if(S7200Addresses.count(ip)) {
+    if(S7200Addresses[ip].find(var) != S7200Addresses[ip].end())
+    {
+        S7200Addresses[ip].erase(var);
+    }
+
+    if(S7200Addresses[ip].size() == 0) {
+      S7200IPs.erase(ip);
+      S7200Addresses.erase(ip);
+      Common::Logger::globalInfo(Common::Logger::L1, "All Addresses from this IP address deleted.");
+    }
+  }
+}
+
+bool S7200HWMapper::checkIPExist(std::string ip) {
+  return S7200IPs.count(ip);
 }

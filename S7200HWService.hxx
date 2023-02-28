@@ -25,6 +25,7 @@
 #include <queue>
 #include <chrono>
 #include <unordered_map>
+#include<set>
 
 class S7200HWService : public HWService
 {
@@ -35,8 +36,9 @@ class S7200HWService : public HWService
     virtual void stop();
     virtual void workProc();
     virtual PVSSboolean writeData(HWObject *objPtr);
-
-
+    std::map < std::string , std::vector< std::pair<std::string, void*> > > writeQueueForIP;
+    std::set<std::string> IPAddressList;
+    int CheckIP(std::string);
 
 private:
     void handleConsumerConfigError(const std::string&, int, const std::string&);
@@ -53,6 +55,9 @@ private:
     void insertInDataToDp(CharString&& address, char* value);
     std::mutex _toDPmutex;
 
+
+    
+    std::map < std::string, int > DisconnectsPerIP;
     std::queue<std::pair<CharString,char*>> _toDPqueue;
     std::atomic<bool> _brokersDown{false};
 

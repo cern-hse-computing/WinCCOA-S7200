@@ -104,7 +104,7 @@ PVSSboolean S7200StringTrans::toPeriph(PVSSchar *buffer, PVSSuint len,
     return PVSS_FALSE;
   }
 
-  if(tv.getString().len() > _size){
+  if(tv.getString().len() > 1024 * 10 ){
       ErrHdl::error(ErrClass::PRIO_SEVERE, // Data will be lost
               ErrClass::ERR_PARAM, // Wrong parametrization
               ErrClass::UNEXPECTEDSTATE, // Nothing else appropriate
@@ -114,7 +114,8 @@ PVSSboolean S7200StringTrans::toPeriph(PVSSchar *buffer, PVSSuint len,
 
       return PVSS_FALSE;
   }
-  sprintf((char*)buffer, "%s", tv.getValue());
+
+  sprintf((char*)buffer, "%s\0", tv.getValue());
 
   return PVSS_TRUE;
 }

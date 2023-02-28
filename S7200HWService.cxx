@@ -28,6 +28,7 @@
 #include <execinfo.h>
 #include <exception>
 #include <chrono>
+#include <utility>
 #include <thread>
 
 static std::atomic<bool> _consumerRun{true};
@@ -71,51 +72,49 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
 
     auto lambda = [&]
         {
+          Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Inside polling thread");
             S7200LibFacade aFacade(ip, this->_configConsumeCB, this->_configErrorConsumerCB);
             if(!aFacade.isInitialized())
             {
-                Common::Logger::globalWarning("Unable to initialize IP:", ip.c_str());
+                Common::Logger::globalError("Unable to initialize IP:", ip.c_str());
             }
             else
             {
                 _facades[ip] = &aFacade;
-                while(_consumerRun)
+                writeQueueForIP.insert(std::pair < std::string, std::vector < std::pair < std::string, void * > > > ( ip, std::vector<std::pair<std::string, void *> > ()));
+                DisconnectsPerIP.insert(std::pair< std::string, int >( ip, 0));
+                DisconnectsPerIP[ip] = 0;
+                while(_consumerRun && DisconnectsPerIP[ip] < 20 && static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(ip))
                 {
+                    Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Polling");
+                    //printf("Hi2 from printf for IP %s\n", ip.c_str());
                     auto pollingInterval = std::chrono::seconds(Common::Constants::getPollingInterval());
-
-    Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "pollingInterval:", CharString(Common::Constants::getPollingInterval()).c_str());
-
                     auto start = std::chrono::steady_clock::now();
 
                     auto vars = static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->getS7200Addresses();
                     if(vars.find(ip) != vars.end()){
-                        aFacade.poll(vars[ip]);
+                       //First do all the writes for this IP, then the reads
+                        aFacade.write(writeQueueForIP[ip]);
+                        writeQueueForIP[ip].clear();
+                        aFacade.poll(vars[ip]);                         
                     }
-
                     auto end = std::chrono::steady_clock::now();
                     auto time_elapsed = end - start;
                    
                     // If we still have time left, then sleep
-                    if(time_elapsed < pollingInterval){
-
-    Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "before sleep");
+                    if(time_elapsed < pollingInterval)
                       std::this_thread::sleep_for(pollingInterval- time_elapsed);
-    Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "after sleep");
-                    }
-                    else
-                {
+                }
 
-    Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "no sleep for the bravesS");
-                }
-                        
-                }
+                Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Out of polling loop for the thread. Process stopped or max disconnects exceeded");
+                aFacade.Disconnect();
+                IPAddressList.erase(ip);
             }
 
-        };
-
+        };    
     _pollingThreads.emplace_back(lambda);
 
-    Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "New IP polling started:", ip.c_str());
+    //Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "New IP polling started:", ip.c_str());
 }
 
 //--------------------------------------------------------------------------------
@@ -123,20 +122,23 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
 
 PVSSboolean S7200HWService::start()
 {
-  // use this function to start your hardware activity.
-  Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__);
-  
+  // use this function to start your hardware activity.  
    // Check if we need to launch consumer(s)
    // This list is automatically built by exisiting addresses sent at driver startup
    // new top
    for (const auto& ip : static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->getS7200IPs() )
    {
+        IPAddressList.insert(ip);
         this->handleNewIPAddress(ip);
    }
 
   return PVSS_TRUE;
 }
 
+int S7200HWService::CheckIP(std::string IPAddress)
+{
+  return IPAddressList.count(IPAddress);
+}
 //--------------------------------------------------------------------------------
 
 void S7200HWService::stop()
@@ -156,10 +158,22 @@ void S7200HWService::stop()
 
 void S7200HWService::workProc()
 {
-  HWObject obj;
 
+  for (const auto& ip : static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->getS7200IPs() )
+   {
+        if(IPAddressList.count(ip) == 0)
+        {
+          Common::Logger::globalInfo(Common::Logger::L1,"Calling HandleNewIP() from workProc()");
+          IPAddressList.insert(ip);
+          this->handleNewIPAddress(ip);
+        }
+   }
+
+  HWObject obj;
+  //Common::Logger::globalInfo(Common::Logger::L1,"Inside WorkProc");
   // TODO somehow receive a message from your device
   std::lock_guard<std::mutex> lock{_toDPmutex};
+  //Common::Logger::globalInfo(Common::Logger::L1,"Get lock on DPmutex");
   Common::Logger::globalInfo(Common::Logger::L3,__PRETTY_FUNCTION__,"Size", CharString(_toDPqueue.size()));
   while (!_toDPqueue.empty())
   {
@@ -170,10 +184,10 @@ void S7200HWService::workProc()
 //    // a chance to see what's happening
 //    if ( Resources::isDbgFlag(Resources::DBG_DRV_USR1) )
 //      obj.debugPrint();
-
+    std::vector<std::string> addressOptions = Common::Utils::split(pair.first.c_str());
     // find the HWObject via the periphery address in the HWObject list,
     HWObject *addrObj = DrvManager::getHWMapperPtr()->findHWObject(&obj);
-
+    
     // ok, we found it; now send to the DPEs
     if ( addrObj )
     {
@@ -188,7 +202,12 @@ void S7200HWService::workProc()
         obj.setData((PVSSchar*)pair.second); //data
         obj.setObjSrcType(srcPolled);
 
-        DrvManager::getSelfPtr()->toDp(&obj, addrObj);
+        if( DrvManager::getSelfPtr()->toDp(&obj, addrObj) != PVSS_TRUE) {
+          Common::Logger::globalInfo(Common::Logger::L1,"Problem in sending item's value to PVSS");
+        }
+    } else {
+        Common::Logger::globalInfo(Common::Logger::L1,"Problem in getting HWObject for the address, increasing disconnect count");
+        DisconnectsPerIP[addressOptions[ADDRESS_OPTIONS_IP]]++;
     }
 
   }
@@ -233,12 +252,30 @@ PVSSboolean S7200HWService::writeData(HWObject *objPtr)
     }
 
     if(_facades.find(addressOptions[ADDRESS_OPTIONS_IP]) != _facades.end()){
-        if(S7200LibFacade::S7200AddressIsValid(addressOptions[ADDRESS_OPTIONS_VAR])){
+        if(!S7200LibFacade::S7200AddressIsValid(addressOptions[ADDRESS_OPTIONS_VAR])){
+          Common::Logger::globalInfo(Common::Logger::L1,"Incoming CONFIG address",objPtr->getAddress(), objPtr->getInfo() );
           Common::Logger::globalWarning(__PRETTY_FUNCTION__,"Not a valid Var");
           return PVSS_FALSE;
         }
         else{
-          _facades[addressOptions[ADDRESS_OPTIONS_IP]]->S7200Write(addressOptions[ADDRESS_OPTIONS_VAR], std::move((char*)objPtr->getDataPtr()));
+          auto wrQueue = writeQueueForIP.find(addressOptions[ADDRESS_OPTIONS_IP]);
+          int length = (int)objPtr->getDlen();
+
+          if(length == 2) {
+            char *correctval = (char *)malloc(sizeof(int16_t));
+            memcpy(correctval, objPtr->getDataPtr(), sizeof(int16_t));
+            wrQueue->second.push_back( std::make_pair( addressOptions[ADDRESS_OPTIONS_VAR], correctval));
+          } else if(length == 4){
+            char *correctval = (char*)malloc(sizeof(float));
+            memcpy(correctval, objPtr->getDataPtr(), sizeof(sizeof(float)));
+            wrQueue->second.push_back( std::make_pair( addressOptions[ADDRESS_OPTIONS_VAR], correctval));
+          } else {
+            char *correctval = (char*)malloc(length);
+            memcpy(correctval, objPtr->getDataPtr(), length);
+            wrQueue->second.push_back( std::make_pair( addressOptions[ADDRESS_OPTIONS_VAR], correctval));
+          }
+
+          Common::Logger::globalInfo(Common::Logger::L1,"Added write request to queue",objPtr->getAddress(), objPtr->getInfo() );
         }
     }
     else{

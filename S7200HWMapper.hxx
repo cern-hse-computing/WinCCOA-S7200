@@ -36,11 +36,13 @@ class S7200HWMapper : public HWMapper
     virtual PVSSboolean clrDpPa(DpIdentifier &dpId, PeriphAddr *confPtr);
 
     void setNewIPAddressCallback(newIPAddressCallback cb) {_newIPAddressCB = cb;}
-    const std::unordered_set<std::string>& getS7200IPs(){return S7200IPs;}
+    const std::unordered_set<std::string>& getS7200IPs() {return S7200IPs;}
     const std::map<std::string, std::unordered_set<std::string>>& getS7200Addresses(){return S7200Addresses;}
+    bool checkIPExist(std::string);
 
   private:
     void addAddress(const std::string& ip, const std::string& var);
+    void removeAddress(const std::string& ip, const std::string& var);
 
     std::unordered_set<std::string> S7200IPs;
     std::map<std::string, std::unordered_set<std::string>> S7200Addresses;
