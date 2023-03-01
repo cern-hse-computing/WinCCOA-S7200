@@ -19,7 +19,6 @@
 #include "Common/Logger.hxx"
 #include "Common/Constants.hxx"
 #include "Common/Utils.hxx"
-#include "Common/AsyncRecurringTask.hxx"
 
 #include "S7200HWMapper.hxx"
 #include "S7200LibFacade.hxx"

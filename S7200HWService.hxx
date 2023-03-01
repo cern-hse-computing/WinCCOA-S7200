@@ -21,9 +21,9 @@
 #include "S7200LibFacade.hxx"
 
 #include "Common/Logger.hxx"
-#include "Common/AsyncRecurringTask.hxx"
 #include <queue>
 #include <chrono>
+#include <thread>
 #include <unordered_map>
 #include<set>
 
@@ -50,16 +50,12 @@ private:
     consumeCallbackConsumer  _configConsumeCB{[this](const std::string& ip, const std::string& var, char* payload){this->handleConsumeNewMessage(ip, var, std::move(payload));}};
     std::function<void(const std::string&)> _newIPAddressCB{[this](const std::string& ip){this->handleNewIPAddress(ip);}};
 
-
     //Common
     void insertInDataToDp(CharString&& address, char* value);
     std::mutex _toDPmutex;
-
-
     
     std::map < std::string, int > DisconnectsPerIP;
     std::queue<std::pair<CharString,char*>> _toDPqueue;
-    std::atomic<bool> _brokersDown{false};
 
     enum
     {
@@ -67,9 +63,6 @@ private:
        ADDRESS_OPTIONS_VAR,
        ADDRESS_OPTIONS_SIZE
     } ADDRESS_OPTIONS;
-
-    std::unique_ptr<Common::AsyncRecurringTask<std::function<void()>>> _streamAsyncTask;
-    std::unique_ptr<Common::AsyncRecurringTask<std::function<void()>>> _poolAsyncTask;
 
     std::vector<std::thread> _pollingThreads;
 
