@@ -91,7 +91,7 @@ void S7200LibFacade::write(std::vector<std::pair<std::string, void *>> addresses
     S7200ReadWriteMaxN(addresses, 12, PDU_SIZE, OVERHEAD_WRITE_VARIABLE, OVERHEAD_WRITE_MESSAGE, OPERATION_WRITE);
 
     for(uint i = 0; i < addresses.size(); i++) {
-        free(addresses[i].second);
+        delete[] (char *)addresses[i].second;
     }
 }
 
@@ -231,30 +231,30 @@ void S7200LibFacade::S7200DisplayTS7DataItem(PS7DataItem item)
         case S7WLByte:
             if(item->Amount>1){
                 std::string strVal( reinterpret_cast<char const*>(item->pdata));
-                printf("-->read valus as string :'%s'\n", strVal.c_str());
+                //printf("-->read valus as string :'%s'\n", strVal.c_str());
             }
             else{
                 uint8_t byteVal;
                 std::memcpy(&byteVal, item->pdata  , sizeof(uint8_t));
-                printf("-->read value as byte : %d\n", byteVal);
+                //printf("-->read value as byte : %d\n", byteVal);
             }
             break;
         case S7WLWord:
             uint16_t wordVal;
             std::memcpy(&wordVal, item->pdata  , sizeof(uint16_t));
-            printf("-->read value as word : %d\n", __bswap_16(wordVal));
+            //printf("-->read value as word : %d\n", __bswap_16(wordVal));
             break;
         case S7WLReal:{
-                float realVal;
-                u_char f[] = { static_cast<byte*>(item->pdata)[3], static_cast<byte*>(item->pdata)[2], static_cast<byte*>(item->pdata)[1], static_cast<byte*>(item->pdata)[0]};
-                std::memcpy(&realVal, f, sizeof(float));
-                printf("-->read value as real : %.3f\n", realVal);
+            float realVal;
+            u_char f[] = { static_cast<byte*>(item->pdata)[3], static_cast<byte*>(item->pdata)[2], static_cast<byte*>(item->pdata)[1], static_cast<byte*>(item->pdata)[0]};
+            std::memcpy(&realVal, f, sizeof(float));
+            //printf("-->read value as real : %.3f\n", realVal);
             }
             break;
         case S7WLBit:
             uint8_t bitVal;
             std::memcpy(&bitVal, item->pdata  , sizeof(uint8_t));
-            printf("-->read value as bit : %d\n", bitVal);      
+            //printf("-->read value as bit : %d\n", bitVal);      
             break;
     }
 }
@@ -266,7 +266,7 @@ TS7DataItem S7200LibFacade::S7200TS7DataItemFromAddress(std::string S7200Address
     item.DBNumber = 1;
     item.Start    = item.WordLen == S7WLBit ? (S7200AddressGetStart(S7200Address)*8)+S7200AddressGetBit(S7200Address) : S7200AddressGetStart(S7200Address);
     item.Amount   = S7200AddressGetAmount(S7200Address);
-    item.pdata   = malloc(S7200DataSizeByte(item.WordLen )*item.Amount);
+    item.pdata   = new char[S7200DataSizeByte(item.WordLen )*item.Amount];
     return item;
 }
 

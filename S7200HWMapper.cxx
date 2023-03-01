@@ -156,6 +156,7 @@ void S7200HWMapper::addAddress(const std::string &ip, const std::string &var)
     if(S7200IPs.find(ip) == S7200IPs.end())
     {
         S7200IPs.insert(ip);
+        Common::Logger::globalInfo(Common::Logger::L1, "Received var from a new IP Address");
         S7200Addresses.erase(ip);
         S7200Addresses.insert(std::pair<std::string, std::unordered_set<std::string>>(ip, std::unordered_set<std::string>()));
     }

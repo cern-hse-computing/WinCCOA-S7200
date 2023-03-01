@@ -86,7 +86,6 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
                 while(_consumerRun && DisconnectsPerIP[ip] < 20 && static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(ip))
                 {
                     Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Polling");
-                    //printf("Hi2 from printf for IP %s\n", ip.c_str());
                     auto pollingInterval = std::chrono::seconds(Common::Constants::getPollingInterval());
                     auto start = std::chrono::steady_clock::now();
 
@@ -261,16 +260,16 @@ PVSSboolean S7200HWService::writeData(HWObject *objPtr)
           int length = (int)objPtr->getDlen();
 
           if(length == 2) {
-            char *correctval = (char *)malloc(sizeof(int16_t));
-            memcpy(correctval, objPtr->getDataPtr(), sizeof(int16_t));
+            char *correctval = new char[sizeof(int16_t)];
+            std::memcpy(correctval, objPtr->getDataPtr(), sizeof(int16_t));
             wrQueue->second.push_back( std::make_pair( addressOptions[ADDRESS_OPTIONS_VAR], correctval));
           } else if(length == 4){
-            char *correctval = (char*)malloc(sizeof(float));
-            memcpy(correctval, objPtr->getDataPtr(), sizeof(sizeof(float)));
+            char *correctval = new char[sizeof(float)];
+            std::memcpy(correctval, objPtr->getDataPtr(), sizeof(sizeof(float)));
             wrQueue->second.push_back( std::make_pair( addressOptions[ADDRESS_OPTIONS_VAR], correctval));
           } else {
-            char *correctval = (char*)malloc(length);
-            memcpy(correctval, objPtr->getDataPtr(), length);
+            char *correctval = new char[length];
+            std::memcpy(correctval, objPtr->getDataPtr(), length);
             wrQueue->second.push_back( std::make_pair( addressOptions[ADDRESS_OPTIONS_VAR], correctval));
           }
 

@@ -115,7 +115,7 @@ PVSSboolean S7200StringTrans::toPeriph(PVSSchar *buffer, PVSSuint len,
       return PVSS_FALSE;
   }
 
-  sprintf((char*)buffer, "%s\0", tv.getValue());
+  sprintf((char*)buffer, "%s%c", tv.getValue(), '\0');
 
   return PVSS_TRUE;
 }
