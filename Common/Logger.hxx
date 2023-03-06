@@ -50,7 +50,7 @@ public:
 	 * Change of global logger info level
 	 * \param new logging level
 	 */
-	static void setLogLvl(int lvl);
+	static void setLogLvl(int16_t lvl);
 
 	/*!
 	 * Setting number of device to which logger is binded
@@ -70,7 +70,7 @@ public:
 	static const int L3 = 3;
     static const int L4 = 4;
 
-    static const int& getLogLevel();
+    static const int getLogLevel();
 private:
 
 	std::fstream& getStream();
@@ -79,7 +79,7 @@ private:
 
 	void updatePrefix();
 
-    static int loggingLevel;
+    static int16_t loggingLevel;
 
 	std::fstream f;
 	long creationTime;
@@ -95,12 +95,12 @@ private:
 };
 
 
-inline void Logger::setLogLvl(int lvl){
+inline void Logger::setLogLvl(int16_t lvl){
 	loggingLevel = lvl;
 }
 
 
-inline const int& Logger::getLogLevel(){
+inline const int Logger::getLogLevel(){
     return loggingLevel;
 }
 

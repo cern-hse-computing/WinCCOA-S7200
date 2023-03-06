@@ -24,17 +24,19 @@
 #define PDU_SIZE 240
 
 #include <string>
+#include <chrono>
 #include <vector>
 #include <stdexcept>
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <cstring>
+#include <map>
 #include <functional>
 #include <unordered_set>
 #include "snap7.h"
 
-using consumeCallbackConsumer = std::function<void(const std::string& ip, const std::string& var, char* payload)>;
+using consumeCallbackConsumer = std::function<void(const std::string& ip, const std::string& var, const std::string& pollTime, char* payload)>;
 using errorCallbackConsumer = std::function<void(const std::string& ip, int error,  const std::string& reason)>;
 
 /**
@@ -56,8 +58,9 @@ public:
     S7200LibFacade& operator=(const S7200LibFacade&) = delete;
 
     bool isInitialized(){return _initialized;}
-    void poll(std::unordered_set<std::string>&);
+    void poll(std::vector<std::pair<std::string, int>>&, std::chrono::time_point<std::chrono::steady_clock> loopStartTime);
     void write(std::vector<std::pair<std::string, void * >>);
+    void clearLastWriteTimeList();
 
     TS7DataItem S7200Read(std::string S7200Address, void* val);
     // TS7DataItem* S7200LibFacade::S7200Read2(std::string S7200Address1, void* val1, std::string S7200Address2, void* val2);
@@ -66,6 +69,7 @@ public:
     void S7200ReadWriteMaxN(std::vector <std::pair<std::string, void *>> validVars, uint N, int PDU_SZ, int VAR_OH, int MSG_OH, int rorw);
     TS7DataItem S7200Write(std::string S7200Address, void* val);
     static int getByteSizeFromAddress(std::string S7200Address);
+    std::map<std::string, std::chrono::time_point<std::chrono::steady_clock> > lastWritePerAddress;
     
     static bool S7200AddressIsValid(std::string S7200Address);
 private:

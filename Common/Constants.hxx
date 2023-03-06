@@ -41,6 +41,8 @@ public:
 
     static std::string& getDrvName();
 
+    static std::string& getDrvVersion();
+
     // called in driver init to set the driver number dynamically
     static void setDrvNo(uint32_t no);
     // subsequentally called when writing buffers etc.
@@ -59,13 +61,14 @@ public:
 
 private:
     static std::string drv_name;
+    static std::string drv_version;
 
     static uint32_t DRV_NO;   // WinCC OA manager number
     static uint32_t TSAP_PORT_LOCAL;
     static uint32_t TSAP_PORT_REMOTE;
     static size_t POLLING_INTERVAL;
 
-    static std::map<std::string, std::function<void(const char*)>> parse_map;
+    static std::map<std::string, std::function<void(const char *)>> parse_map;
 };
 
 inline const std::map<std::string,std::function<void(const char *)>>& Constants::GetParseMap()
@@ -79,6 +82,10 @@ inline void Constants::setDrvName(std::string dname){
 
 inline std::string& Constants::getDrvName(){
 	return drv_name;
+}
+
+inline std::string& Constants::getDrvVersion(){
+	return drv_version;
 }
 
 inline void Constants::setDrvNo(uint32_t no){

@@ -65,25 +65,53 @@ void S7200LibFacade::Disconnect()
     }
 }
 
-void S7200LibFacade::poll(std::unordered_set<std::string>& vars)
-{
-    std::vector <std::string> validVars;
+void S7200LibFacade::clearLastWriteTimeList() {
+    lastWritePerAddress.clear();
+}
 
-    for (std::string var : vars){
-        if(S7200AddressIsValid(var)){
-            validVars.push_back(var);
+void S7200LibFacade::poll(std::vector<std::pair<std::string, int>>& vars, std::chrono::time_point<std::chrono::steady_clock> loopStartTime)
+{
+    std::vector<std::pair<std::string, void *>> addresses;
+
+    for (uint i = 0 ; i < vars.size() ; i++) {
+        if(S7200AddressIsValid(vars[i].first)){
+            if(lastWritePerAddress.count(vars[i].first) == 0) {
+                lastWritePerAddress.insert(std::pair<std::string, std::chrono::time_point<std::chrono::steady_clock>>(vars[i].first, loopStartTime));
+                Common::Logger::globalInfo(Common::Logger::L1,"Added to lastWritePerAddress queue: address", vars[i].first.c_str());
+                addresses.push_back(std::pair<std::string, void *>(vars[i].first, (void *)&vars[i].second));
+            } else{
+                int fpollTime;
+                int fpollingInterval = std::chrono::seconds(Common::Constants::getPollingInterval()).count() > 0 ? std::chrono::seconds(Common::Constants::getPollingInterval()).count() : 2;  
+
+                if(fpollingInterval < vars[i].second) {
+                    fpollTime = vars[i].second;
+                } else {
+                    fpollTime = fpollingInterval;
+                    //Common::Logger::globalInfo(Common::Logger::L1,"Using default polling Interval for address", vars[i].first.c_str());
+                    //Common::Logger::globalInfo(Common::Logger::L1,"Default polling Interval: ", std::to_string(fpollingInterval).c_str());
+                }
+
+                std::chrono::duration<double> tDiff = loopStartTime - lastWritePerAddress[vars[i].first];
+                if((int)tDiff.count() >= fpollTime) {
+                    lastWritePerAddress[vars[i].first] = loopStartTime;
+                    addresses.push_back(std::pair<std::string, void *>(vars[i].first, (void *)&vars[i].second));
+                }
+            }
         }
     }
 
-    if(validVars.size() == 0) {
+    if(addresses.size() == 0) {
         Common::Logger::globalInfo(Common::Logger::L1, "Valid vars size is 0, did not call read");
         return;
     }
-    std::vector<std::pair<std::string, void *>> addresses;
-
-    for(uint i = 0; i< validVars.size(); i++) {
-        addresses.push_back(std::pair<std::string, void *>(validVars[i], NULL));
-    }
+    
+                       
+    // for(uint i = 0; i < addresses.size() ; i++) {
+    //     int a;
+    //     std::memcpy(&a, addresses[i].second, sizeof(int));    
+    //     Common::Logger::globalInfo(Common::Logger::L1,("Address: "+ addresses[i].first + "Polling Time" + std::to_string(a)).c_str());
+    // }
+    
     S7200ReadWriteMaxN(addresses, 19, PDU_SIZE, OVERHEAD_READ_VARIABLE, OVERHEAD_READ_MESSAGE, OPERATION_READ);
 }
 
@@ -362,8 +390,11 @@ void S7200LibFacade::S7200ReadWriteMaxN(std::vector <std::pair<std::string, void
                 if(rorw == 0) {
                     Common::Logger::globalInfo(Common::Logger::L1, "Read OK");
                 
-                    for(uint i = last_index; i < last_index + to_send; i++)
-                        this->_consumeCB(_ip, validVars[i].first, reinterpret_cast<char*>(item[i].pdata));
+                    for(uint i = last_index; i < last_index + to_send; i++) {
+                        int a;
+                        std::memcpy(&a, validVars[i].second, sizeof(int));    
+                        this->_consumeCB(_ip, validVars[i].first, std::to_string(a), reinterpret_cast<char*>(item[i].pdata));
+                    }
                 } else {
                     Common::Logger::globalInfo(Common::Logger::L1, "Write OK");
                 }

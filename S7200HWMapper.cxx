@@ -21,7 +21,9 @@
 #include "Transformations/S7200Uint8Trans.hxx"
 #include "S7200HWService.hxx"
 
+#include <algorithm>
 #include "Common/Logger.hxx"
+#include "Common/Constants.hxx"
 #include "Common/Utils.hxx"
 #include <PVSSMacros.hxx>     // DEBUG macros
 
@@ -35,7 +37,6 @@ PVSSboolean S7200HWMapper::addDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
 
   Common::Logger::globalInfo(Common::Logger::L1,"addDpPa called for ", confPtr->getName().c_str());
   //Common::Logger::globalInfo(Common::Logger::L1,"addDpPa direction ", CharString(confPtr->getDirection()));
-
 
   // tell the config how we will transform data to/from the device
   // by installing a Transformation object into the PeriphAddr
@@ -105,9 +106,10 @@ PVSSboolean S7200HWMapper::addDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
 
   if(confPtr->getDirection() == DIRECTION_IN || confPtr->getDirection() == DIRECTION_INOUT)
   {
-      if (addressOptions.size() == 2) // IP + VAR
+      if (addressOptions.size() == 3) // IP + VAR + POLLTIME
       {
-        addAddress(addressOptions[0], addressOptions[1]);
+        if(addressOptions[0].compare("VERSION"))
+          addAddress(addressOptions[0], addressOptions[1], addressOptions[2]);
       }
   }
 
@@ -118,8 +120,6 @@ PVSSboolean S7200HWMapper::addDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
 
 PVSSboolean S7200HWMapper::clrDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
 {
-  DEBUG_DRV_USR1("clrDpPa called for " << confPtr->getName());
-
   Common::Logger::globalInfo(Common::Logger::L1, "clrDpPa called for" + confPtr->getName());
 
   // Find our HWObject via a template
@@ -134,9 +134,9 @@ PVSSboolean S7200HWMapper::clrDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
 
   if(confPtr->getDirection() == DIRECTION_IN || confPtr->getDirection() == DIRECTION_INOUT)
   {
-      if (addressOptions.size() == 2) // IP + VAR
+      if (addressOptions.size() == 3) // IP + VAR + POLLTIME
       {
-        removeAddress(addressOptions[0], addressOptions[1]);
+        removeAddress(addressOptions[0], addressOptions[1], addressOptions[2]);
       }
   }
 
@@ -151,36 +151,40 @@ PVSSboolean S7200HWMapper::clrDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
   return HWMapper::clrDpPa(dpId, confPtr);
 }
 
-void S7200HWMapper::addAddress(const std::string &ip, const std::string &var)
+void S7200HWMapper::addAddress(const std::string &ip, const std::string &var, const std::string &pollTime)
 {
     if(S7200IPs.find(ip) == S7200IPs.end())
     {
         S7200IPs.insert(ip);
         Common::Logger::globalInfo(Common::Logger::L1, "Received var from a new IP Address");
         S7200Addresses.erase(ip);
-        S7200Addresses.insert(std::pair<std::string, std::unordered_set<std::string>>(ip, std::unordered_set<std::string>()));
+        S7200Addresses.insert(std::pair<std::string, std::vector<std::pair<std::string, int>>>(ip, std::vector<std::pair<std::string, int>>()));
     }
 
     if(S7200Addresses.count(ip)){
-      if(S7200Addresses[ip].find(var) == S7200Addresses[ip].end())
+
+      if(std::find(S7200Addresses[ip].begin(), S7200Addresses[ip].end(), make_pair(var,  std::stoi(pollTime))) == S7200Addresses[ip].end())
       {
-        S7200Addresses[ip].insert(var);
+        S7200Addresses[ip].push_back(make_pair(var, std::stoi(pollTime)));
+        Common::Logger::globalInfo(Common::Logger::L1, "Added to S7200AddressList", var.c_str());
       }
     }
 }
 
-void S7200HWMapper::removeAddress(const std::string &ip, const std::string &var)
+void S7200HWMapper::removeAddress(const std::string &ip, const std::string &var, const std::string &pollTime)
 {
+  
   if(S7200Addresses.count(ip)) {
-    if(S7200Addresses[ip].find(var) != S7200Addresses[ip].end())
-    {
-        S7200Addresses[ip].erase(var);
+    
+    if(std::find(S7200Addresses[ip].begin(), S7200Addresses[ip].end(), make_pair(var,  std::stoi(pollTime))) != S7200Addresses[ip].end()) {
+        S7200Addresses[ip].erase(std::find(S7200Addresses[ip].begin(), S7200Addresses[ip].end(), make_pair(var,  std::stoi(pollTime))));
     }
 
     if(S7200Addresses[ip].size() == 0) {
       S7200IPs.erase(ip);
       S7200Addresses.erase(ip);
       Common::Logger::globalInfo(Common::Logger::L1, "All Addresses from this IP address deleted.");
+      std::this_thread::sleep_for(std::chrono::seconds(2));
     }
   }
 }

@@ -43,11 +43,11 @@ class S7200HWService : public HWService
 private:
     void handleConsumerConfigError(const std::string&, int, const std::string&);
 
-    void handleConsumeNewMessage(const std::string&, const std::string&, char*);
+    void handleConsumeNewMessage(const std::string&, const std::string&, const std::string&, char*);
     void handleNewIPAddress(const std::string& ip);
 
     errorCallbackConsumer _configErrorConsumerCB{[this](const std::string& ip, int err, const std::string& reason) { this->handleConsumerConfigError(ip, err, reason);}};
-    consumeCallbackConsumer  _configConsumeCB{[this](const std::string& ip, const std::string& var, char* payload){this->handleConsumeNewMessage(ip, var, std::move(payload));}};
+    consumeCallbackConsumer  _configConsumeCB{[this](const std::string& ip, const std::string& var, const std::string& pollTime, char* payload){this->handleConsumeNewMessage(ip, var, pollTime,std::move(payload));}};
     std::function<void(const std::string&)> _newIPAddressCB{[this](const std::string& ip){this->handleNewIPAddress(ip);}};
 
     //Common
@@ -61,6 +61,7 @@ private:
     {
        ADDRESS_OPTIONS_IP = 0,
        ADDRESS_OPTIONS_VAR,
+       ADDRESS_OPTIONS_POLLTIME,
        ADDRESS_OPTIONS_SIZE
     } ADDRESS_OPTIONS;
 

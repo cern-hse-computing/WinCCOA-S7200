@@ -46,9 +46,6 @@ PVSSboolean S7200HWService::initialize(int argc, char *argv[])
   // if you don't need it, you can safely remove the whole method
   Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__,"start");
 
-  // add callback for new ip addresses
-  static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->setNewIPAddressCallback(_newIPAddressCB);
-
   Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__,"end");
   // To stop driver return PVSS_FALSE
   return PVSS_TRUE;
@@ -59,10 +56,13 @@ void S7200HWService::handleConsumerConfigError(const std::string& ip, int code, 
      Common::Logger::globalWarning(__PRETTY_FUNCTION__, CharString(ip.c_str(), ip.length()), str.c_str());
 }
 
-void S7200HWService::handleConsumeNewMessage(const std::string& ip, const std::string& var, char* payload)
+void S7200HWService::handleConsumeNewMessage(const std::string& ip, const std::string& var, const std::string& pollTime, char* payload)
 {
-    //Common::Logger::globalInfo(Common::Logger::L3, __PRETTY_FUNCTION__, (ip + ":" + var + ":" + payload).c_str());
-    insertInDataToDp(std::move(CharString((ip+"$"+var).c_str())), payload);
+    if(ip.compare("VERSION"))
+      //Common::Logger::globalInfo(Common::Logger::L3, __PRETTY_FUNCTION__, (ip + ":" + var + ":" + payload).c_str());
+      insertInDataToDp(std::move(CharString((ip + "$" + var + "$" + pollTime).c_str())), payload);
+    else 
+      insertInDataToDp(std::move(CharString((ip + "$" + var ).c_str())), payload);  //Config DPs do not have a polling time associated with them in the address.
 }
 
 void S7200HWService::handleNewIPAddress(const std::string& ip)
@@ -71,7 +71,7 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
 
     auto lambda = [&]
         {
-          Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Inside polling thread");
+            Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Inside polling thread");
             S7200LibFacade aFacade(ip, this->_configConsumeCB, this->_configErrorConsumerCB);
             if(!aFacade.isInitialized())
             {
@@ -83,10 +83,16 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
                 writeQueueForIP.insert(std::pair < std::string, std::vector < std::pair < std::string, void * > > > ( ip, std::vector<std::pair<std::string, void *> > ()));
                 DisconnectsPerIP.insert(std::pair< std::string, int >( ip, 0));
                 DisconnectsPerIP[ip] = 0;
+                //Write Driver version
+                char* DrvVersion = new char[Common::Constants::getDrvVersion().size()];
+                std::strcpy(DrvVersion, Common::Constants::getDrvVersion().c_str());
+                Common::Logger::globalInfo(Common::Logger::L1, "Sent Driver version: ", DrvVersion);
+                handleConsumeNewMessage("VERSION", "STRING", "", DrvVersion);
+
                 while(_consumerRun && DisconnectsPerIP[ip] < 20 && static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(ip))
                 {
                     Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Polling");
-                    auto pollingInterval = std::chrono::seconds(Common::Constants::getPollingInterval());
+                    auto cycleInterval = std::chrono::seconds(1);
                     auto start = std::chrono::steady_clock::now();
 
                     auto vars = static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->getS7200Addresses();
@@ -94,19 +100,26 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
                        //First do all the writes for this IP, then the reads
                         aFacade.write(writeQueueForIP[ip]);
                         writeQueueForIP[ip].clear();
-                        aFacade.poll(vars[ip]);                         
+                        aFacade.poll(vars[ip], start);                         
                     }
                     auto end = std::chrono::steady_clock::now();
                     auto time_elapsed = end - start;
                    
                     // If we still have time left, then sleep
-                    if(time_elapsed < pollingInterval)
-                      std::this_thread::sleep_for(pollingInterval- time_elapsed);
+                    if(time_elapsed < cycleInterval)
+                      std::this_thread::sleep_for(cycleInterval- time_elapsed);
                 }
 
-                Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Out of polling loop for the thread. Process stopped or max disconnects exceeded");
+                if( static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(ip) == false )
+                  Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Out of polling loop for the thread. IP removed from list");
+                else if (DisconnectsPerIP[ip] >= 20) 
+                  Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Out of polling loop for the thread. Max disconnects exceeded");
+                else
+                  Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Out of polling loop for the thread.");
+
                 aFacade.Disconnect();
                 IPAddressList.erase(ip);
+                aFacade.clearLastWriteTimeList();
             }
 
         };    
@@ -179,6 +192,10 @@ void S7200HWService::workProc()
     _toDPqueue.pop();
     obj.setAddress(pair.first);
 
+    if(strcmp(pair.first.c_str(), "VERSION$STRING") == 0) {
+        Common::Logger::globalInfo(Common::Logger::L1,"For driver version, writing to WinCCOA value ", pair.second);
+    }
+
 //    // a chance to see what's happening
 //    if ( Resources::isDbgFlag(Resources::DBG_DRV_USR1) )
 //      obj.debugPrint();
@@ -197,6 +214,13 @@ void S7200HWService::workProc()
         //printf("-->send to WinCCOA '%s' :'%s', size:'%d'\n", pair.first.c_str(), pair.second, dataLengh);
 
         obj.setDlen(dataLengh); // lengh
+
+        if(strcmp(pair.first.c_str(), "VERSION$STRING") == 0) {
+            obj.setDlen(4);
+            Common::Logger::globalInfo(Common::Logger::L1,"AddrObj found, For driver version, writing to WinCCOA value ", pair.second);
+            Common::Logger::globalInfo(Common::Logger::L1,"Data length is ", std::to_string(dataLengh).c_str());
+        }
+
         obj.setData((PVSSchar*)pair.second); //data
         obj.setObjSrcType(srcPolled);
 
@@ -204,10 +228,9 @@ void S7200HWService::workProc()
           Common::Logger::globalInfo(Common::Logger::L1,"Problem in sending item's value to PVSS");
         }
     } else {
-        Common::Logger::globalInfo(Common::Logger::L1,"Problem in getting HWObject for the address, increasing disconnect count");
+        Common::Logger::globalInfo(Common::Logger::L1,"Problem in getting HWObject for the address," + pair.first +"increasing disconnect count");
         DisconnectsPerIP[addressOptions[ADDRESS_OPTIONS_IP]]++;
     }
-
   }
 }
 
@@ -227,13 +250,29 @@ PVSSboolean S7200HWService::writeData(HWObject *objPtr)
 
   std::vector<std::string> addressOptions = Common::Utils::split(objPtr->getAddress().c_str());
 
-  // CONFIG DPs have just 1
-  if(addressOptions.size() == 1)
+  // CONFIG DPs have just 2
+  if(addressOptions.size() == 2)
   {
       try
       {
         Common::Logger::globalInfo(Common::Logger::L2,"Incoming CONFIG address",objPtr->getAddress(), objPtr->getInfo() );
-        Common::Constants::GetParseMap().at(std::string(objPtr->getAddress().c_str()))((const char*)objPtr->getData());
+        
+        if(addressOptions[ADDRESS_OPTIONS_IP].compare("DEBUGLVL") == 0) {
+          int16_t* retVal = new int16_t;
+          char *IntToConvert = ( char* )objPtr->getDataPtr();
+
+          // swap the bytes into a temporary buffer
+          retVal[0] = IntToConvert[1];
+          retVal[1] = IntToConvert[0];
+
+          Common::Logger::globalInfo(Common::Logger::L1,"Incoming CONFIG address",objPtr->getAddress(), std::to_string(*retVal).c_str());
+
+          if(*retVal > 0 && *retVal  < 4)
+            Common::Constants::GetParseMap().at(std::string(objPtr->getAddress().c_str()))((char *)retVal);
+          
+          return PVSS_TRUE;
+        }
+        
       }
       catch (std::exception& e)
       {
@@ -251,7 +290,6 @@ PVSSboolean S7200HWService::writeData(HWObject *objPtr)
 
     if(_facades.find(addressOptions[ADDRESS_OPTIONS_IP]) != _facades.end()){
         if(!S7200LibFacade::S7200AddressIsValid(addressOptions[ADDRESS_OPTIONS_VAR])){
-          Common::Logger::globalInfo(Common::Logger::L1,"Incoming CONFIG address",objPtr->getAddress(), objPtr->getInfo() );
           Common::Logger::globalWarning(__PRETTY_FUNCTION__,"Not a valid Var");
           return PVSS_FALSE;
         }
@@ -265,7 +303,7 @@ PVSSboolean S7200HWService::writeData(HWObject *objPtr)
             wrQueue->second.push_back( std::make_pair( addressOptions[ADDRESS_OPTIONS_VAR], correctval));
           } else if(length == 4){
             char *correctval = new char[sizeof(float)];
-            std::memcpy(correctval, objPtr->getDataPtr(), sizeof(sizeof(float)));
+            std::memcpy(correctval, objPtr->getDataPtr(), sizeof(float));
             wrQueue->second.push_back( std::make_pair( addressOptions[ADDRESS_OPTIONS_VAR], correctval));
           } else {
             char *correctval = new char[length];

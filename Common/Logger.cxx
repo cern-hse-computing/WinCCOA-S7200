@@ -18,7 +18,7 @@
 
 namespace Common {
 
-int Logger::loggingLevel = 1;
+int16_t Logger::loggingLevel = 1;
 const char * Logger::timestrformat = "%a, %d.%m.%Y %H:%M:%S";
 
 void Logger::globalInfo(int lvl, const char *note1, const char* note2, const char* note3){
