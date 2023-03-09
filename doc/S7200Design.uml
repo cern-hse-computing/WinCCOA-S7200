@@ -1,0 +1,108 @@
+@startuml
+start
+
+:Read <b>config.s7200</b> file;
+note right
+    Reads the configuration entries for 
+    ports and the minimum pollingInterval.
+    <b>S7200Resources::readSection()</b>
+end note   
+:S7200HWService::start() ;
+
+:Launch a thread for each IP Address associated with the driver
+;
+note left
+    <b> S7200HWService::
+    <b>handleNewIPAddress()
+end note
+fork
+    :ThreadPerIP for IP Address 1;
+    (F)
+    detach
+fork again
+    :ThreadPerIP for IP Address 2;
+    (F)
+    detach
+fork again 
+    -[#black,dotted]->
+    :ThreadPerIP for IP Address N;
+    -[#black,dotted]->
+    (F)
+    note right
+        <b>S7200LibFacade</b>
+    end note    
+    detach
+end fork
+
+
+fork
+    partition S7200HWService::writeData() {
+        start
+        :Decode HWObject from WinCC;
+        if(object is a S7200 HWObject) then
+            :add object to <b>writeQueueForIP</b> for combined writing;
+        else if(object is Config item) then
+            :Apply config (Debug Level) immediately;
+        endif
+        stop
+    }
+    partition kafkaHWService::workProc() {
+        start
+        while (<b>_toDPqueue</b> items to process?) is (yes)
+            if (item addressed in the driver?) then (yes)
+                :push DPE entry to WinCC;
+                note right
+                    <b>DrvManager::getSelfPtr()->toDp</b>
+                end note
+            endif
+        endwhile (no)  
+        stop
+    }
+
+fork again 
+    skinparam ConditionEndStyle hline
+    partition ThreadPerIP {
+        start
+        while(<b>_consumerRun</b>?) is (yes)
+            (F)
+            note right
+                <b>S7200LibFacade.write()</b>
+                Pops objects from <b>writeQueueForIP</b>
+                Writes to the device
+            end note
+            (F)
+            note right 
+                <b>S7200LibFacade.poll()</b>
+            end note
+            while (polled messages to process?) is (yes)
+                :<b>S7200HWService::
+                <b>handleConsumeNewMessage()</b>;
+                :add DPE to <b>_toDPqueue</b>;
+                note right
+                    <b>S7200HWService::insertInDataToDP()</b>
+                end note
+            endwhile (no)   
+        endwhile (no)
+        stop
+    }
+partition S7200LibFacade.poll() {
+    start
+    if (Is address present in <b>lastWritePerAddress</b> map ?) then (Yes)
+        if(Current Time - Last Write time of Address >= Polling Time) then (True)
+            :Update value in map with current time
+            Add address to Polling List;
+        endif
+    else (No)
+        :Add address to Polling List;
+        :Add address to map with value as current time; 
+    endif
+    :Read address in the Polling List
+    update <b>_toDPqueue</b>;
+    stop
+}   
+
+end fork
+
+
+end
+@enduml
