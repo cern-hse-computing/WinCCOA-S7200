@@ -46,6 +46,31 @@ S7200LibFacade::S7200LibFacade(const std::string& ip, consumeCallbackConsumer cb
     }
 }
 
+
+void S7200LibFacade::Reconnect()
+{
+ Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Reconnecting to '", _ip.c_str());
+
+    try{
+        _client = new TS7Client();
+
+        _client->SetConnectionParams(_ip.c_str(), Common::Constants::getLocalTsapPort(), Common::Constants::getRemoteTsapPort());
+        int res = _client->Connect();
+
+
+        if (res==0) {
+            Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Connected to '", _ip.c_str());
+            //printf("  PDU Requested  : %d bytes\n",Client->PDURequested());
+            //printf("  PDU Negotiated : %d bytes\n",Client->PDULength());
+            _initialized = true;
+        }
+    }
+    catch(std::exception& e)
+    {
+        Common::Logger::globalWarning("Snap7: Unable to initialize connection!", e.what());
+    }
+}
+
 void S7200LibFacade::Disconnect()
 {
     Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Disconnecting from '", _ip.c_str());
@@ -403,6 +428,7 @@ void S7200LibFacade::S7200ReadWriteMaxN(std::vector <std::pair<std::string, void
                 if(rorw == 0) {
                     //printf("-->Read NOK!, Tried to read %d elements with total requesting size: %d .retOpt is %d\n", to_send, curr_sum + MSG_OH, retOpt);
                     Common::Logger::globalInfo(Common::Logger::L1, "-->Read NOK");
+                    readFailures++;
                 }
                 else {
                     //printf("-->Write NOK!, Tried to write %d elements with total requesting size: %d .retOpt is %d\n", to_send, curr_sum + MSG_OH, retOpt);
