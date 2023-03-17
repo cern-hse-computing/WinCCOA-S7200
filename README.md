@@ -52,6 +52,7 @@ Additionally, the driver offers compatibility with multiple IP addresses, making
 
 * C++11 STL
 * WinCC OA API libraries
+* Snap7 
 
 
 <a name="toc3"></a>
