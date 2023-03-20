@@ -61,6 +61,8 @@ public:
     void poll(std::vector<std::pair<std::string, int>>&, std::chrono::time_point<std::chrono::steady_clock> loopStartTime);
     void write(std::vector<std::pair<std::string, void * >>);
     void clearLastWriteTimeList();
+    void Reconnect();
+
 
     TS7DataItem S7200Read(std::string S7200Address, void* val);
     // TS7DataItem* S7200LibFacade::S7200Read2(std::string S7200Address1, void* val1, std::string S7200Address2, void* val2);
@@ -72,6 +74,8 @@ public:
     std::map<std::string, std::chrono::time_point<std::chrono::steady_clock> > lastWritePerAddress;
     
     static bool S7200AddressIsValid(std::string S7200Address);
+
+    int readFailures = 0; //allowed since C++11
 private:
     //std::unique_ptr<Consumer> _consumer;
     std::string _ip;
