@@ -30,6 +30,7 @@
 class S7200HWMapper : public HWMapper
 {
   public:
+    std::map<std::string, bool> isIPrunning;
     virtual PVSSboolean addDpPa(DpIdentifier &dpId, PeriphAddr *confPtr);
     virtual PVSSboolean clrDpPa(DpIdentifier &dpId, PeriphAddr *confPtr);
 
