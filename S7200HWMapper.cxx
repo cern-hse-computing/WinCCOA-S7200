@@ -156,6 +156,7 @@ void S7200HWMapper::addAddress(const std::string &ip, const std::string &var, co
     if(S7200IPs.find(ip) == S7200IPs.end())
     {
         S7200IPs.insert(ip);
+        isIPrunning.insert(std::pair<std::string, bool>(ip, true));
         Common::Logger::globalInfo(Common::Logger::L1, "Received var from a new IP Address");
         S7200Addresses.erase(ip);
         S7200Addresses.insert(std::pair<std::string, std::vector<std::pair<std::string, int>>>(ip, std::vector<std::pair<std::string, int>>()));
@@ -184,7 +185,12 @@ void S7200HWMapper::removeAddress(const std::string &ip, const std::string &var,
       S7200IPs.erase(ip);
       S7200Addresses.erase(ip);
       Common::Logger::globalInfo(Common::Logger::L1, "All Addresses from this IP address deleted.");
-      std::this_thread::sleep_for(std::chrono::seconds(2));
+
+      while(isIPrunning[ip]) {
+          Common::Logger::globalInfo(Common::Logger::L1, "Thread for the IP is still running. Sleeping for 1 second");
+          std::this_thread::sleep_for(std::chrono::seconds(1));
+      }
+      Common::Logger::globalInfo(Common::Logger::L1, "Thread exited.");
     }
   }
 }

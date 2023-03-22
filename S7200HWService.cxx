@@ -68,6 +68,8 @@ void S7200HWService::handleConsumeNewMessage(const std::string& ip, const std::s
 void S7200HWService::handleNewIPAddress(const std::string& ip)
 {
     Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "New IP:", ip.c_str());
+    static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->isIPrunning.insert(std::pair<std::string, bool>(ip, true));
+    static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->isIPrunning[ip] = true;
 
     auto lambda = [&]
         {
@@ -89,10 +91,10 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
                   aFacade.Disconnect();
                   std::this_thread::sleep_for(std::chrono::seconds(5));
                 }
-              } while(!aFacade.isInitialized() && static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(ip));
+              } while(!aFacade.isInitialized() && static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(ip) && _consumerRun);
           }
 
-          if(aFacade.isInitialized() && static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(ip)) {
+          if(aFacade.isInitialized() && static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(ip) && _consumerRun) {
             _facades[ip] = &aFacade;
             writeQueueForIP.insert(std::pair < std::string, std::vector < std::pair < std::string, void * > > > ( ip, std::vector<std::pair<std::string, void *> > ()));
             DisconnectsPerIP.insert(std::pair< std::string, int >( ip, 0));
@@ -134,7 +136,7 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
                     Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Failure in re-connection. Trying again in 5 seconds");
                     std::this_thread::sleep_for(std::chrono::seconds(5));
                   }
-                } while(!aFacade.isInitialized() && static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(ip));
+                } while(!aFacade.isInitialized() && static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(ip) && _consumerRun);
                 aFacade.readFailures = 0;
                 }
             }
@@ -148,6 +150,7 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
             Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Out of polling loop for the thread.");
 
           aFacade.Disconnect();
+          static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->isIPrunning[ip] = false;
           IPAddressList.erase(ip);
           aFacade.clearLastWriteTimeList();
         };    
