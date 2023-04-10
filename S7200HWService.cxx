@@ -9,6 +9,7 @@
  * Intergovernmental Organization or submit itself to any jurisdiction.
  *
  * Author: Adrien Ledeul (HSE)
+ * Co-Author: Richi Dubey (HSE)
  *
  **/
 
@@ -45,8 +46,6 @@ PVSSboolean S7200HWService::initialize(int argc, char *argv[])
   // use this function to initialize internals
   // if you don't need it, you can safely remove the whole method
   Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__,"start");
-
-  Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__,"end");
   // To stop driver return PVSS_FALSE
   return PVSS_TRUE;
 }
@@ -58,9 +57,10 @@ void S7200HWService::handleConsumerConfigError(const std::string& ip, int code, 
 
 void S7200HWService::handleConsumeNewMessage(const std::string& ip, const std::string& var, const std::string& pollTime, char* payload)
 {
-    if(ip.compare("VERSION"))
+    if(ip.compare("VERSION")) {
       //Common::Logger::globalInfo(Common::Logger::L3, __PRETTY_FUNCTION__, (ip + ":" + var + ":" + payload).c_str());
-      insertInDataToDp(std::move(CharString((ip + "$" + var + "$" + pollTime).c_str())), payload);
+      insertInDataToDp(std::move(CharString((ip + "$" + var + "$" + pollTime).c_str())), payload); 
+    }
     else 
       insertInDataToDp(std::move(CharString((ip + "$" + var ).c_str())), payload);  //Config DPs do not have a polling time associated with them in the address.
 }
@@ -73,12 +73,12 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
 
     auto lambda = [&]
         {
-            Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Inside polling thread");
+            Common::Logger::globalInfo(Common::Logger::L2,__PRETTY_FUNCTION__, "Inside polling thread");
             S7200LibFacade aFacade(ip, this->_configConsumeCB, this->_configErrorConsumerCB);
             if(!aFacade.isInitialized())
             {
-              Common::Logger::globalInfo(Common::Logger::L1, "Unable to initialize IP:", ip.c_str());
-              Common::Logger::globalInfo(Common::Logger::L1, "Trying to connect again in 5 seconds");
+              Common::Logger::globalInfo(Common::Logger::L2, "Unable to initialize IP:", ip.c_str());
+              Common::Logger::globalInfo(Common::Logger::L2, "Trying to connect again in 5 seconds");
               
               std::this_thread::sleep_for(std::chrono::seconds(5));
               
@@ -87,7 +87,7 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
                 aFacade.Reconnect();
 
                 if(!aFacade.isInitialized()) {
-                  Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Failure in re-connection. Trying again in 5 seconds");
+                  Common::Logger::globalInfo(Common::Logger::L2,__PRETTY_FUNCTION__, "Failure in re-connection. Trying again in 5 seconds");
                   aFacade.Disconnect();
                   std::this_thread::sleep_for(std::chrono::seconds(5));
                 }
@@ -102,12 +102,12 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
             //Write Driver version
             char* DrvVersion = new char[Common::Constants::getDrvVersion().size()];
             std::strcpy(DrvVersion, Common::Constants::getDrvVersion().c_str());
-            Common::Logger::globalInfo(Common::Logger::L1, "Sent Driver version: ", DrvVersion);
+            Common::Logger::globalInfo(Common::Logger::L2, "Sent Driver version: ", DrvVersion);
             handleConsumeNewMessage("VERSION", "STRING", "", DrvVersion);
 
             while(_consumerRun && DisconnectsPerIP[ip] < 20 && static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(ip))
             {
-              Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Polling");
+              Common::Logger::globalInfo(Common::Logger::L2,__PRETTY_FUNCTION__, "Polling");
               auto cycleInterval = std::chrono::seconds(1);
               auto start = std::chrono::steady_clock::now();
 
@@ -155,8 +155,6 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
           aFacade.clearLastWriteTimeList();
         };    
     _pollingThreads.emplace_back(lambda);
-
-    //Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "New IP polling started:", ip.c_str());
 }
 
 //--------------------------------------------------------------------------------
@@ -212,11 +210,9 @@ void S7200HWService::workProc()
    }
 
   HWObject obj;
-  //Common::Logger::globalInfo(Common::Logger::L1,"Inside WorkProc");
-  // TODO somehow receive a message from your device
   std::lock_guard<std::mutex> lock{_toDPmutex};
-  //Common::Logger::globalInfo(Common::Logger::L1,"Get lock on DPmutex");
   Common::Logger::globalInfo(Common::Logger::L3,__PRETTY_FUNCTION__,"Size", CharString(_toDPqueue.size()));
+
   while (!_toDPqueue.empty())
   {
     auto pair = std::move(_toDPqueue.front());
@@ -227,9 +223,6 @@ void S7200HWService::workProc()
         Common::Logger::globalInfo(Common::Logger::L1,"For driver version, writing to WinCCOA value ", pair.second);
     }
 
-//    // a chance to see what's happening
-//    if ( Resources::isDbgFlag(Resources::DBG_DRV_USR1) )
-//      obj.debugPrint();
     std::vector<std::string> addressOptions = Common::Utils::split(pair.first.c_str());
     // find the HWObject via the periphery address in the HWObject list,
     HWObject *addrObj = DrvManager::getHWMapperPtr()->findHWObject(&obj);
@@ -238,7 +231,6 @@ void S7200HWService::workProc()
     if ( addrObj )
     {
         Common::Logger::globalInfo(Common::Logger::L2,__PRETTY_FUNCTION__, pair.first, pair.second);
-        //addrObj->debugPrint();
         obj.setOrgTime(TimeVar());  // current time
         int dataLengh = S7200LibFacade::getByteSizeFromAddress(Common::Utils::split(pair.first.c_str())[1]);
 
@@ -248,18 +240,18 @@ void S7200HWService::workProc()
 
         if(strcmp(pair.first.c_str(), "VERSION$STRING") == 0) {
             obj.setDlen(4);
-            Common::Logger::globalInfo(Common::Logger::L1,"AddrObj found, For driver version, writing to WinCCOA value ", pair.second);
-            Common::Logger::globalInfo(Common::Logger::L1,"Data length is ", std::to_string(dataLengh).c_str());
+            Common::Logger::globalInfo(Common::Logger::L2,"AddrObj found, For driver version, writing to WinCCOA value ", pair.second);
+            Common::Logger::globalInfo(Common::Logger::L2,"Data length is ", std::to_string(dataLengh).c_str());
         }
 
         obj.setData((PVSSchar*)pair.second); //data
         obj.setObjSrcType(srcPolled);
 
         if( DrvManager::getSelfPtr()->toDp(&obj, addrObj) != PVSS_TRUE) {
-          Common::Logger::globalInfo(Common::Logger::L1,"Problem in sending item's value to PVSS");
+          Common::Logger::globalInfo(Common::Logger::L2,"Problem in sending item's value to PVSS");
         }
     } else {
-        Common::Logger::globalInfo(Common::Logger::L1,"Problem in getting HWObject for the address," + pair.first +"increasing disconnect count");
+        Common::Logger::globalInfo(Common::Logger::L2,"Problem in getting HWObject for the address," + pair.first + "increasing disconnect count");
         DisconnectsPerIP[addressOptions[ADDRESS_OPTIONS_IP]]++;
     }
   }
@@ -277,7 +269,7 @@ void S7200HWService::insertInDataToDp(CharString&& address, char* item)
 
 PVSSboolean S7200HWService::writeData(HWObject *objPtr)
 {
-//  Common::Logger::globalInfo(Common::Logger::L2,__PRETTY_FUNCTION__,"Incoming obj address",objPtr->getAddress());
+  //Common::Logger::globalInfo(Common::Logger::L2,__PRETTY_FUNCTION__,"Incoming obj address",objPtr->getAddress());
 
   std::vector<std::string> addressOptions = Common::Utils::split(objPtr->getAddress().c_str());
 
@@ -342,7 +334,7 @@ PVSSboolean S7200HWService::writeData(HWObject *objPtr)
             wrQueue->second.push_back( std::make_pair( addressOptions[ADDRESS_OPTIONS_VAR], correctval));
           }
 
-          Common::Logger::globalInfo(Common::Logger::L1,"Added write request to queue",objPtr->getAddress(), objPtr->getInfo() );
+          Common::Logger::globalInfo(Common::Logger::L2, "Added write request to queue",objPtr->getAddress(), objPtr->getInfo() );
         }
     }
     else{

@@ -9,6 +9,7 @@
  * Intergovernmental Organization or submit itself to any jurisdiction.
  *
  * Author: Adrien Ledeul (HSE)
+ * Co-Author: Richi Dubey (HSE)
  *
  **/
 
@@ -35,7 +36,7 @@ PVSSboolean S7200HWMapper::addDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
   // We don't use Subindices here, so its simple.
   // Otherwise we had to look if we already have a HWObject and adapt its length.
 
-  Common::Logger::globalInfo(Common::Logger::L1,"addDpPa called for ", confPtr->getName().c_str());
+  Common::Logger::globalInfo(Common::Logger::L2,"addDpPa called for ", confPtr->getName().c_str());
   //Common::Logger::globalInfo(Common::Logger::L1,"addDpPa direction ", CharString(confPtr->getDirection()));
 
   // tell the config how we will transform data to/from the device
@@ -120,7 +121,7 @@ PVSSboolean S7200HWMapper::addDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
 
 PVSSboolean S7200HWMapper::clrDpPa(DpIdentifier &dpId, PeriphAddr *confPtr)
 {
-  Common::Logger::globalInfo(Common::Logger::L1, "clrDpPa called for" + confPtr->getName());
+  Common::Logger::globalInfo(Common::Logger::L2, "clrDpPa called for" + confPtr->getName());
 
   // Find our HWObject via a template
   HWObject adrObj;
@@ -157,7 +158,7 @@ void S7200HWMapper::addAddress(const std::string &ip, const std::string &var, co
     {
         S7200IPs.insert(ip);
         isIPrunning.insert(std::pair<std::string, bool>(ip, true));
-        Common::Logger::globalInfo(Common::Logger::L1, "Received var from a new IP Address");
+        Common::Logger::globalInfo(Common::Logger::L2, "Received var from a new IP Address");
         S7200Addresses.erase(ip);
         S7200Addresses.insert(std::pair<std::string, std::vector<std::pair<std::string, int>>>(ip, std::vector<std::pair<std::string, int>>()));
     }
@@ -167,7 +168,7 @@ void S7200HWMapper::addAddress(const std::string &ip, const std::string &var, co
       if(std::find(S7200Addresses[ip].begin(), S7200Addresses[ip].end(), make_pair(var,  std::stoi(pollTime))) == S7200Addresses[ip].end())
       {
         S7200Addresses[ip].push_back(make_pair(var, std::stoi(pollTime)));
-        Common::Logger::globalInfo(Common::Logger::L1, "Added to S7200AddressList", var.c_str());
+        Common::Logger::globalInfo(Common::Logger::2, "Added to S7200AddressList", var.c_str());
       }
     }
 }
