@@ -9,6 +9,7 @@
  * Intergovernmental Organization or submit itself to any jurisdiction.
  *
  * Author: Adrien Ledeul (HSE)
+ * Co-Author: Richi Dubey (HSE)
  *
  **/
 
@@ -102,7 +103,7 @@ void S7200LibFacade::poll(std::vector<std::pair<std::string, int>>& vars, std::c
         if(S7200AddressIsValid(vars[i].first)){
             if(lastWritePerAddress.count(vars[i].first) == 0) {
                 lastWritePerAddress.insert(std::pair<std::string, std::chrono::time_point<std::chrono::steady_clock>>(vars[i].first, loopStartTime));
-                Common::Logger::globalInfo(Common::Logger::L1,"Added to lastWritePerAddress queue: address", vars[i].first.c_str());
+                Common::Logger::globalInfo(Common::Logger::L2,"Added to lastWritePerAddress queue: address", vars[i].first.c_str());
                 addresses.push_back(std::pair<std::string, void *>(vars[i].first, (void *)&vars[i].second));
             } else{
                 int fpollTime;
@@ -126,7 +127,7 @@ void S7200LibFacade::poll(std::vector<std::pair<std::string, int>>& vars, std::c
     }
 
     if(addresses.size() == 0) {
-        Common::Logger::globalInfo(Common::Logger::L1, "Valid vars size is 0, did not call read");
+        Common::Logger::globalInfo(Common::Logger::L2, "Valid vars size is 0, did not call read");
         return;
     }
     
@@ -413,7 +414,7 @@ void S7200LibFacade::S7200ReadWriteMaxN(std::vector <std::pair<std::string, void
                 //printf("Read/Write %d items\n", to_send);
 
                 if(rorw == 0) {
-                    Common::Logger::globalInfo(Common::Logger::L1, "Read OK");
+                    Common::Logger::globalInfo(Common::Logger::L2, "Read OK");
                 
                     for(uint i = last_index; i < last_index + to_send; i++) {
                         int a;
@@ -421,7 +422,7 @@ void S7200LibFacade::S7200ReadWriteMaxN(std::vector <std::pair<std::string, void
                         this->_consumeCB(_ip, validVars[i].first, std::to_string(a), reinterpret_cast<char*>(item[i].pdata));
                     }
                 } else {
-                    Common::Logger::globalInfo(Common::Logger::L1, "Write OK");
+                    Common::Logger::globalInfo(Common::Logger::L2, "Write OK");
                 }
             }
             else{
