@@ -13,6 +13,7 @@
  **/
 
 #include <S7200HWService.hxx>
+#include "S7200Resources.hxx"
 
 #include <DrvManager.hxx>
 #include <PVSSMacros.hxx>     // DEBUG macros
@@ -114,7 +115,7 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
             aFacade.S7200MarkDeviceConnectionError(IP_FIXED, false);
 
             auto first_time = std::chrono::steady_clock::now();
-
+            
             while(_consumerRun && static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(IP_FIXED))
             {
               if(!S7200Resources::getDisableCommands()) {

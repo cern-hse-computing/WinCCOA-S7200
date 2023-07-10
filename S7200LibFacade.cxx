@@ -338,7 +338,7 @@ TS7DataItem S7200LibFacade::S7200TS7DataItemFromAddress(std::string S7200Address
     return item;
 }
 
-void S7200LibFacade::S7200MarkDeviceConnectionError(string ip, bool error_status){
+void S7200LibFacade::S7200MarkDeviceConnectionError(std::string ip, bool error_status){
     if(error_status)
         Common::Logger::globalInfo(Common::Logger::L1, "Request from LambdaThread: Writing true to DPE for PLC connection erorr for PLC IP : ", ip.c_str());
     else
