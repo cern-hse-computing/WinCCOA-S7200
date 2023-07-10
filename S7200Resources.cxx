@@ -1,4 +1,4 @@
-/** © Copyright 2022 CERN
+/** © Copyright 2023 CERN
  *
  * This software is distributed under the terms of the
  * GNU Lesser General Public Licence version 3 (LGPL Version 3),
@@ -8,8 +8,7 @@
  * and immunities granted to it by virtue of its status as an
  * Intergovernmental Organization or submit itself to any jurisdiction.
  *
- * Author: Adrien Ledeul (HSE)
- * Co-Author: Richi Dubey (HSE)
+ * Author: Adrien Ledeul (HSE), Richi Dubey (HSE)
  *
  **/
 
@@ -25,6 +24,13 @@ const CharString S7200Resources::SECTION_NAME = "s7200";
 const CharString S7200Resources::TSAP_PORT_LOCAL = "localTSAP";
 const CharString S7200Resources::TSAP_PORT_REMOTE = "remoteTSAP";
 const CharString S7200Resources::POLLING_INTERVAL = "pollingInterval";
+const CharString S7200Resources::MEASUREMENT_PATH = "mesFile";
+const CharString S7200Resources::EVENT_PATH = "eventFile";
+const CharString S7200Resources::USERFILE_PATH = "userFile";
+
+ std::string Common::Constants::MEASUREMENT_PATH;
+ std::string Common::Constants::EVENT_PATH;
+std::string Common::Constants::USERFILE_PATH;
 
 //-------------------------------------------------------------------------------
 // init is a wrapper around begin, readSection and end
@@ -68,7 +74,16 @@ PVSSboolean S7200Resources::readSection() {
 			}else if(keyWord.startsWith(POLLING_INTERVAL)) {
 				cfgStream >> tmpStr;
 				Common::Constants::setPollingInterval(atoi(tmpStr.c_str()));
-      }
+      		}else if(keyWord.startsWith(MEASUREMENT_PATH)) {
+				cfgStream >> tmpStr;
+				Common::Constants::setMeasFilePath(tmpStr);
+      		}else if(keyWord.startsWith(EVENT_PATH)) {
+				cfgStream >> tmpStr;
+				Common::Constants::setEventFilePath(tmpStr);
+      		}else if(keyWord.startsWith(USERFILE_PATH)) {
+				cfgStream >> tmpStr;
+				Common::Constants::setUserFilePath(tmpStr);
+      		}
 
 			getNextEntry();
 		}

@@ -1,4 +1,4 @@
-/** © Copyright 2022 CERN
+/** © Copyright 2023 CERN
  *
  * This software is distributed under the terms of the
  * GNU Lesser General Public Licence version 3 (LGPL Version 3),
@@ -8,11 +8,9 @@
  * and immunities granted to it by virtue of its status as an
  * Intergovernmental Organization or submit itself to any jurisdiction.
  *
- * Author: Adrien Ledeul (HSE)
- * Co-Author: Richi Dubey (HSE)
+ * Author: Adrien Ledeul (HSE), Richi Dubey (HSE)
  *
  **/
-
 
 #ifndef S7200HWSERVICE_H_
 #define S7200HWSERVICE_H_

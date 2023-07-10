@@ -1,4 +1,4 @@
-/** © Copyright 2022 CERN
+/** © Copyright 2023 CERN
  *
  * This software is distributed under the terms of the
  * GNU Lesser General Public Licence version 3 (LGPL Version 3),
@@ -8,8 +8,7 @@
  * and immunities granted to it by virtue of its status as an
  * Intergovernmental Organization or submit itself to any jurisdiction.
  *
- * Author: Adrien Ledeul (HSE)
- * Co-Author: Richi Dubey (HSE)
+ * Author: Adrien Ledeul (HSE), Richi Dubey (HSE)
  *
  **/
 
@@ -45,6 +44,10 @@ class S7200Resources : public DrvRsrce
     static const CharString TSAP_PORT_LOCAL;
     static const CharString TSAP_PORT_REMOTE;
     static const CharString POLLING_INTERVAL;
+    static const CharString MEASUREMENT_PATH;
+    static const CharString EVENT_PATH;
+    static const CharString USERFILE_PATH;
 };
 
 #endif
+

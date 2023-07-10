@@ -1,4 +1,4 @@
-/** © Copyright 2022 CERN
+/** © Copyright 2023 CERN
  *
  * This software is distributed under the terms of the
  * GNU Lesser General Public Licence version 3 (LGPL Version 3),
@@ -8,8 +8,7 @@
  * and immunities granted to it by virtue of its status as an
  * Intergovernmental Organization or submit itself to any jurisdiction.
  *
- * Author: Adrien Ledeul (HSE)
- * Co-Author: Richi Dubey (HSE)
+ * Author: Adrien Ledeul (HSE), Richi Dubey (HSE)
  *
  **/
 
@@ -22,20 +21,26 @@
 #include <algorithm>
 #include <vector>
 
+
 S7200LibFacade::S7200LibFacade(const std::string& ip, consumeCallbackConsumer cb, errorCallbackConsumer erc = nullptr)
     : _ip(ip), _consumeCB(cb), _errorCB(erc)
 {
-    Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Connecting to '", ip.c_str());
+     Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Initialized LibFacade with IP: ", _ip.c_str());
+}
+
+void S7200LibFacade::Connect()
+{
+    Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Connecting to : Local TSAP Port : Remote TSAP Port'", (_ip + " : "+ std::to_string(Common::Constants::getLocalTsapPort()) + ":" + std::to_string(Common::Constants::getRemoteTsapPort())).c_str());
 
     try{
         _client = new TS7Client();
 
-        _client->SetConnectionParams(ip.c_str(), Common::Constants::getLocalTsapPort(), Common::Constants::getRemoteTsapPort());
+        _client->SetConnectionParams(_ip.c_str(), Common::Constants::getLocalTsapPort(), Common::Constants::getRemoteTsapPort());
         int res = _client->Connect();
 
 
         if (res==0) {
-            Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Connected to '", ip.c_str());
+            Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Connected to '", _ip.c_str());
             //printf("  PDU Requested  : %d bytes\n",Client->PDURequested());
             //printf("  PDU Negotiated : %d bytes\n",Client->PDULength());
             _initialized = true;
@@ -47,10 +52,9 @@ S7200LibFacade::S7200LibFacade(const std::string& ip, consumeCallbackConsumer cb
     }
 }
 
-
 void S7200LibFacade::Reconnect()
 {
- Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Reconnecting to '", _ip.c_str());
+ Common::Logger::globalInfo(Common::Logger::L1,__PRETTY_FUNCTION__, "Snap7: Reconnecting to : Local TSAP Port : Remote TSAP Port'", (_ip + " : "+ std::to_string(Common::Constants::getLocalTsapPort()) + ":" + std::to_string(Common::Constants::getRemoteTsapPort())).c_str());
 
     try{
         _client = new TS7Client();
@@ -93,9 +97,10 @@ void S7200LibFacade::Disconnect()
 
 void S7200LibFacade::clearLastWriteTimeList() {
     lastWritePerAddress.clear();
+    //clear() destroys all the elements in the map
 }
 
-void S7200LibFacade::poll(std::vector<std::pair<std::string, int>>& vars, std::chrono::time_point<std::chrono::steady_clock> loopStartTime)
+void S7200LibFacade::Poll(std::vector<std::pair<std::string, int>>& vars, std::chrono::time_point<std::chrono::steady_clock> loopStartTime)
 {
     std::vector<std::pair<std::string, void *>> addresses;
 
@@ -103,7 +108,7 @@ void S7200LibFacade::poll(std::vector<std::pair<std::string, int>>& vars, std::c
         if(S7200AddressIsValid(vars[i].first)){
             if(lastWritePerAddress.count(vars[i].first) == 0) {
                 lastWritePerAddress.insert(std::pair<std::string, std::chrono::time_point<std::chrono::steady_clock>>(vars[i].first, loopStartTime));
-                Common::Logger::globalInfo(Common::Logger::L2,"Added to lastWritePerAddress queue: address", vars[i].first.c_str());
+                Common::Logger::globalInfo(Common::Logger::L3,"Added to lastWritePerAddress queue: address", vars[i].first.c_str());
                 addresses.push_back(std::pair<std::string, void *>(vars[i].first, (void *)&vars[i].second));
             } else{
                 int fpollTime;
@@ -149,6 +154,15 @@ void S7200LibFacade::write(std::vector<std::pair<std::string, void *>> addresses
     }
 }
 
+void S7200LibFacade::markForNextRead(std::vector<std::pair<std::string, void *>> addresses, std::chrono::time_point<std::chrono::steady_clock> loopFirstStartTime) {
+    for(auto & PairAddress: addresses) {
+         if(S7200AddressIsValid(PairAddress.first)){
+            if(lastWritePerAddress.count(PairAddress.first) != 0) {
+                lastWritePerAddress[PairAddress.first] = loopFirstStartTime;
+            }
+         }
+    }
+}
 
 int S7200LibFacade::S7200AddressGetWordLen(std::string S7200Address)
 {
@@ -324,6 +338,17 @@ TS7DataItem S7200LibFacade::S7200TS7DataItemFromAddress(std::string S7200Address
     return item;
 }
 
+void S7200LibFacade::S7200MarkDeviceConnectionError(string ip, bool error_status){
+    if(error_status)
+        Common::Logger::globalInfo(Common::Logger::L1, "Request from LambdaThread: Writing true to DPE for PLC connection erorr for PLC IP : ", ip.c_str());
+    else
+        Common::Logger::globalInfo(Common::Logger::L1, "Request from LambdaThread: Writing false to DPE for PLC connection erorr for PLC IP : ", ip.c_str());
+    
+    TS7DataItem PLC_Conn_Stat_item = S7200TS7DataItemFromAddress("_Error");
+    memcpy(PLC_Conn_Stat_item.pdata, &error_status , sizeof(bool));
+    this->_consumeCB(ip, "_Error", "", reinterpret_cast<char*>(PLC_Conn_Stat_item.pdata));
+}
+
 float ReverseFloat( const float inFloat )
 {
    float retVal;
@@ -347,6 +372,7 @@ void S7200LibFacade::S7200ReadWriteMaxN(std::vector <std::pair<std::string, void
         TS7DataItem *item = new TS7DataItem[validVars.size()];
 
         for(uint i = 0; i < validVars.size(); i++) {
+           // Common::Logger::globalInfo(Common::Logger::L1,"Getting item with address", validVars[i].first.c_str());
             item[i] = S7200TS7DataItemFromAddress(validVars[i].first);
             
             if(rorw == 1) {
@@ -414,7 +440,7 @@ void S7200LibFacade::S7200ReadWriteMaxN(std::vector <std::pair<std::string, void
                 //printf("Read/Write %d items\n", to_send);
 
                 if(rorw == 0) {
-                    Common::Logger::globalInfo(Common::Logger::L2, "Read OK");
+                    Common::Logger::globalInfo(Common::Logger::L3, "Read OK");
                 
                     for(uint i = last_index; i < last_index + to_send; i++) {
                         int a;
@@ -422,7 +448,7 @@ void S7200LibFacade::S7200ReadWriteMaxN(std::vector <std::pair<std::string, void
                         this->_consumeCB(_ip, validVars[i].first, std::to_string(a), reinterpret_cast<char*>(item[i].pdata));
                     }
                 } else {
-                    Common::Logger::globalInfo(Common::Logger::L2, "Write OK");
+                    Common::Logger::globalInfo(Common::Logger::L1, "Write OK");
                 }
             }
             else{

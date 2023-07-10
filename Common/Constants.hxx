@@ -1,4 +1,4 @@
-/** © Copyright 2022 CERN
+/** © Copyright 2023 CERN
  *
  * This software is distributed under the terms of the
  * GNU Lesser General Public Licence version 3 (LGPL Version 3),
@@ -8,8 +8,7 @@
  * and immunities granted to it by virtue of its status as an
  * Intergovernmental Organization or submit itself to any jurisdiction.
  *
- * Author: Adrien Ledeul (HSE)
- * Co-Author: Richi Dubey (HSE)
+ * Author: Adrien Ledeul (HSE), Richi Dubey (HSE)
  *
  **/
 
@@ -117,7 +116,7 @@ inline const uint32_t& Constants::getRemoteTsapPort(){
 
 inline void Constants::setPollingInterval(size_t pollingInterval)
 {
-    printf("Setting POLLING_INTERVAL=" + CharString(pollingInterval) + "\n");
+    //printf("Setting POLLING_INTERVAL=" + CharString(pollingInterval) + "\n");
     POLLING_INTERVAL = pollingInterval;
 }
 

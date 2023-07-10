@@ -1,4 +1,4 @@
-/** © Copyright 2022 CERN
+/** © Copyright 2023 CERN
  *
  * This software is distributed under the terms of the
  * GNU Lesser General Public Licence version 3 (LGPL Version 3),
@@ -8,8 +8,7 @@
  * and immunities granted to it by virtue of its status as an
  * Intergovernmental Organization or submit itself to any jurisdiction.
  *
- * Author: Adrien Ledeul (HSE)
- * Co-Author: Richi Dubey (HSE)
+ * Author: Adrien Ledeul (HSE), Richi Dubey (HSE)
  *
  **/
 
@@ -44,6 +43,7 @@ class S7200HWMapper : public HWMapper
     void removeAddress(const std::string& ip, const std::string& var, const std::string &pollTime);
 
     std::unordered_set<std::string> S7200IPs;
+    std::map<std::string,  int> addressCounter; //For counting the number of times an address has been added
     std::map<std::string, std::vector<std::pair<std::string, int>>> S7200Addresses;
 
     enum Direction
