@@ -29,7 +29,7 @@ namespace Common {
     // The map can be used to map a callback to a HwObject address
     std::map<std::string, std::function<void(const char*)>> Constants::parse_map =
     {
-        {   "DEBUGLVL$INT32",
+        {   "_DEBUGLVL",
             [](const char* data)
             {
                 Common::Logger::globalInfo(Common::Logger::L1, "setLogLvl:", std::to_string(*data).c_str());
