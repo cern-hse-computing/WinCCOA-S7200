@@ -98,7 +98,7 @@ localTSAP = 0x1401
 # Define remote TSAP port 
 remoteTSAP = 0x1400
 
-# Define polling Interval
+# Define polling Interval (Utilized if it exceeds the interval specified in the variable address)
 pollingInterval = 3
 ```
 
