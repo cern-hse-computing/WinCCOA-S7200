@@ -364,16 +364,26 @@ float ReverseFloat( const float inFloat )
    return retVal;
 }
 
+TS7DataItem S7200LibFacade::initializeIfMissVar(std::string address) {
+    if(VarItems.count(address) == 0)
+        VarItems.insert( std::pair<std::string, TS7DataItem>(address, S7200TS7DataItemFromAddress(address)) );
+    else 
+        VarItems[address].pdata = new char[S7200DataSizeByte(VarItems[address].WordLen )*VarItems[address].Amount];
+
+    return VarItems[address];
+}
+
+
 void S7200LibFacade::S7200ReadWriteMaxN(std::vector <std::pair<std::string, void *>> validVars, uint N, int PDU_SZ, int VAR_OH, int MSG_OH, int rorw) {
     try{
         uint last_index = 0;
         uint to_send = 0;
 
-        TS7DataItem *item = new TS7DataItem[validVars.size()];
+        TS7DataItem item [validVars.size()];
 
         for(uint i = 0; i < validVars.size(); i++) {
            // Common::Logger::globalInfo(Common::Logger::L1,"Getting item with address", validVars[i].first.c_str());
-            item[i] = S7200TS7DataItemFromAddress(validVars[i].first);
+            item[i] = initializeIfMissVar(validVars[i].first);
             
             if(rorw == 1) {
                 int memSize = (S7200DataSizeByte(item[i].WordLen )*item[i].Amount);
@@ -478,5 +488,6 @@ void S7200LibFacade::S7200ReadWriteMaxN(std::vector <std::pair<std::string, void
 int S7200LibFacade::getByteSizeFromAddress(std::string S7200Address)
 {
     TS7DataItem item = S7200TS7DataItemFromAddress(S7200Address);
+    delete[] static_cast<char*>(item.pdata);
     return (S7200DataSizeByte(item.WordLen )*item.Amount);
 }

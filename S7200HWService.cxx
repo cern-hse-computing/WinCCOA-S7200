@@ -330,6 +330,7 @@ PVSSboolean S7200HWService::writeData(HWObject *objPtr)
               Common::Logger::globalInfo(Common::Logger::L1,"Set Debug level successfully to : ", std::to_string(*retVal).c_str());
           } 
           
+          delete retVal;
           return PVSS_TRUE;
         }
         
