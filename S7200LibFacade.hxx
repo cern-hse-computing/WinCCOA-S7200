@@ -85,6 +85,8 @@ public:
     static int S7200AddressGetAmount(std::string S7200Address);
 
     int readFailures = 0; //allowed since C++11
+    std::map <std::string, TS7DataItem> VarItems;
+
 
 private:
     //std::unique_ptr<Consumer> _consumer;
@@ -99,7 +101,8 @@ private:
     static int S7200AddressGetBit(std::string S7200Address);
     static int S7200DataSizeByte(int WordLength);
     static void S7200DisplayTS7DataItem(PS7DataItem item);
-    
+    TS7DataItem initializeIfMissVar(std::string);
+
 };
 
 #endif //S7200LIBFACADE_HXX
