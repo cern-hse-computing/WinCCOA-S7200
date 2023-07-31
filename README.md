@@ -136,14 +136,14 @@ After the driver startup, the main entry points in the driver are:
     
 * S7200HwService::writeData() -> WinCC to Driver communication
 
-    This is how the S7200 streaming is performed. Thanks to the addressing `<TOPIC>$<KEY>[$<DEBOUNCING_TIMEFRAME>]`, the driver will be able to stream to the right topic.
+    This is how the variables with IN/OUT or OUT mode are pushed to S7200. Thanks to the addressing `<IP>$<ADDRESS>`, the driver will be able to write at the appropriate memory location.
 
 * S7200HwService::workProc()  -> Driver to WinCC communication
 
-    This is how we push data to WinCC from S7200. Thanks to the addressing `<TOPIC>$<KEY>`,the driver will be able to map the data ingested from the respective S7200 topic to the WinCC DPE.
+    This is how we push data to WinCC from S7200. Thanks to the addressing `<IP>$<ADDRESS>`,the driver will be able to map the data ingested from the respective S7200 memory location to the WinCC DPE.
 
 Please refer to the WinCC documentation for more information on the WinCC OA API. 
-For more info on the debouncing, see [Remus RealTime Evolution - S7200 presentation](./doc/REMUS_RealTime_Evolution_-_S7200.pptx).
+
 
 <a name="toc6.2"></a>
 
