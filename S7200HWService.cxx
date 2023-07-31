@@ -104,13 +104,7 @@ void S7200HWService::handleNewIPAddress(const std::string& ip)
           }
 
           if(aFacade.isInitialized() && static_cast<S7200HWMapper*>(DrvManager::getHWMapperPtr())->checkIPExist(IP_FIXED) && _consumerRun) {
-            //Write Driver version
-            char* DrvVersion = new char[Common::Constants::getDrvVersion().size()];
-            std::strcpy(DrvVersion, Common::Constants::getDrvVersion().c_str());
-
             std::this_thread::sleep_for(std::chrono::seconds(3)); //Give some time for the driver to load the addresses.
-            Common::Logger::globalInfo(Common::Logger::L1, "Sent Driver version: ", DrvVersion);
-            handleConsumeNewMessage("_VERSION", "", "", DrvVersion);
 
             aFacade.S7200MarkDeviceConnectionError(IP_FIXED, false);
 
@@ -197,6 +191,12 @@ PVSSboolean S7200HWService::start()
         this->handleNewIPAddress(ip);
    }
 
+  //Write Driver version
+  char* DrvVersion = new char[Common::Constants::getDrvVersion().size()];
+  std::strcpy(DrvVersion, Common::Constants::getDrvVersion().c_str());
+  Common::Logger::globalInfo(Common::Logger::L1, "Sent Driver version: ", DrvVersion);
+  handleConsumeNewMessage("_VERSION", "", "", DrvVersion);
+
   return PVSS_TRUE;
 }
 
@@ -252,7 +252,6 @@ void S7200HWService::workProc()
     if(strcmp(pair.first.c_str(), "_VERSION") == 0) {
         Common::Logger::globalInfo(Common::Logger::L2,"For driver version, writing to WinCCOA value ", pair.second);
     }
-
 
 //    // a chance to see what's happening
 //    if ( Resources::isDbgFlag(Resources::DBG_DRV_USR1) )
