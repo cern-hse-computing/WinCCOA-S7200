@@ -1,0 +1,10 @@
+[s7200]
+# Define local TSAP port 
+localTSAP = 0x1001
+
+# Define remote TSAP port 
+remoteTSAP = 0x1000
+
+# Define polling Interval
+pollingInterval = 1
+
