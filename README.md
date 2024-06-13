@@ -1,3 +1,7 @@
+ARCHIVED
+========
+This repository is now archived in favor of https://github.com/cern-hse-computing/WCCOARAMS7200 
+
 CERN HSE Computing  (HSE-TS-CS)
 ==================================================
 
